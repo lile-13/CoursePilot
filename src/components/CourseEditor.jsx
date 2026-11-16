@@ -78,7 +78,7 @@ export default function CourseEditor({ course, preset, onClose }) {
     ]);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) {
       setError('请填写课程名称。');
       return;
@@ -118,18 +118,18 @@ export default function CourseEditor({ course, preset, onClose }) {
       })),
     };
 
-    actions.saveCourse(payload);
+    if (!await actions.saveCourse(payload)) return;
     notify(isEdit ? '课程已更新' : '课程已添加');
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!course) return;
     const confirmed = window.confirm(
       `确定删除课程“${course.name}”吗？关联的作业会保留，但会取消与课程的关联。`
     );
     if (!confirmed) return;
-    actions.deleteCourse(course.id);
+    if (!await actions.deleteCourse(course.id)) return;
     notify('课程已删除');
     onClose();
   };

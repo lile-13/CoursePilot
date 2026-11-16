@@ -61,7 +61,7 @@ function AssignmentEditor({ assignment, courses, now, onClose }) {
   const [reminderMinutes, setReminderMinutes] = useState(assignment?.reminderMinutes || 0);
   const [error, setError] = useState('');
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       setError('请填写作业标题。');
       return;
@@ -78,8 +78,9 @@ function AssignmentEditor({ assignment, courses, now, onClose }) {
       status,
       reminderMinutes: Number(reminderMinutes) || null,
     };
-    if (isEdit) actions.updateAssignment(assignment.id, payload);
-    else actions.addAssignment(payload);
+    const saved = isEdit ? await actions.updateAssignment(assignment.id, payload)
+      : await actions.addAssignment(payload);
+    if (!saved) return;
     notify(isEdit ? '作业已更新' : '作业已添加');
     onClose();
   };
@@ -220,10 +221,10 @@ export default function AssignmentsPage() {
     });
   }, [assignments, now, filter, courseFilter]);
 
-  const handleDelete = (assignment) => {
+  const handleDelete = async (assignment) => {
     const confirmed = window.confirm(`确定删除作业“${assignment.title}”吗？`);
     if (!confirmed) return;
-    actions.deleteAssignment(assignment.id);
+    if (!await actions.deleteAssignment(assignment.id)) return;
     notify('作业已删除');
   };
 

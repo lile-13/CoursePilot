@@ -1,10 +1,11 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { createEmptyState, loadState, normalizeState, saveState } from './lib/storage.js';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createEmptyState, normalizeStateForImport } from './lib/storage.js';
 import { createId } from './lib/id.js';
 import { nextColorIndex } from './lib/classColors.js';
 import { importCourses } from './lib/importCourses.js';
 import { createDemoState } from './lib/demo.js';
 import { normalizeReminderMinutes } from './lib/reminders.js';
+import { createPersistence } from './lib/persistence.js';
 
 const StoreContext = createContext(null);
 
@@ -20,12 +21,31 @@ function prepareSessions(sessions) {
 }
 
 export function StoreProvider({ children }) {
-  const [state, setState] = useState(() => loadState() || createEmptyState());
+  const desktop = typeof window !== 'undefined' && window.coursepilotDesktop?.isDesktop
+    ? window.coursepilotDesktop : null;
+  const [state, updateView] = useState(null);
+  const [storageError, setStorageError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [databasePath, setDatabasePath] = useState('');
+  const persistenceRef = useRef(null);
+  if (!persistenceRef.current) persistenceRef.current = createPersistence({
+    desktop, onState: value => { updateView(value); setStorageError(''); }, onError: setStorageError,
+  });
+  const persistence = persistenceRef.current;
+  const setState = useCallback((update) => persistence.commit(update), [persistence]);
   const [toast, setToast] = useState(null);
 
+  const initialize = useCallback(async () => {
+    setLoading(true); setStorageError('');
+    try {
+      const result = await persistence.initialize();
+      updateView(result.state); setDatabasePath(result.path);
+    } catch (error) { setStorageError(error.message); }
+    finally { setLoading(false); }
+  }, [persistence]);
   useEffect(() => {
-    saveState(state);
-  }, [state]);
+    initialize();
+  }, [initialize]);
 
   const notify = useCallback((message, tone = 'success') => {
     setToast({ id: createId('toast'), message, tone });
@@ -40,11 +60,11 @@ export function StoreProvider({ children }) {
   const actions = useMemo(
     () => ({
       updateSettings(patch) {
-        setState((current) => ({ ...current, settings: { ...current.settings, ...patch } }));
+        return setState((current) => ({ ...current, settings: { ...current.settings, ...patch } }));
       },
 
       saveCourse(course) {
-        setState((current) => {
+        return setState((current) => {
           const exists = current.courses.some((item) => item.id === course.id);
           const colorIndex =
             typeof course.colorIndex === 'number' ? course.colorIndex : nextColorIndex(current.courses);
@@ -57,7 +77,7 @@ export function StoreProvider({ children }) {
       },
 
       deleteCourse(courseId) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           courses: current.courses.filter((course) => course.id !== courseId),
           assignments: current.assignments.map((assignment) =>
@@ -67,11 +87,11 @@ export function StoreProvider({ children }) {
       },
 
       saveImportedCourses(importedCourses, mode = 'merge', settingsPatch = {}) {
-        setState((current) => importCourses(current, importedCourses, mode, settingsPatch));
+        return setState((current) => importCourses(current, importedCourses, mode, settingsPatch));
       },
 
       addAssignment(payload) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           assignments: [
             ...current.assignments,
@@ -92,7 +112,7 @@ export function StoreProvider({ children }) {
       },
 
       updateAssignment(id, patch) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           assignments: current.assignments.map((assignment) => {
             if (assignment.id !== id) return assignment;
@@ -119,7 +139,7 @@ export function StoreProvider({ children }) {
       },
 
       toggleAssignment(id) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           assignments: current.assignments.map((assignment) =>
             assignment.id === id
@@ -137,14 +157,14 @@ export function StoreProvider({ children }) {
       },
 
       deleteAssignment(id) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           assignments: current.assignments.filter((assignment) => assignment.id !== id),
         }));
       },
 
       markAssignmentReminded(id, at = Date.now(), expected) {
-        setState((current) => ({
+        return setState((current) => ({
           ...current,
           assignments: current.assignments.map((assignment) =>
             assignment.id === id && (!expected || (
@@ -157,26 +177,37 @@ export function StoreProvider({ children }) {
       },
 
       loadDemo() {
-        setState(createDemoState());
+        return setState(createDemoState());
       },
 
       replaceState(data) {
-        setState(normalizeState(data));
+        return setState(normalizeStateForImport(data));
       },
 
       resetAll() {
-        setState(createEmptyState());
+        return setState(createEmptyState());
       },
     }),
-    []
+    [setState]
   );
 
   const value = useMemo(
-    () => ({ state, settings: state.settings, courses: state.courses, assignments: state.assignments, actions, toast, notify }),
-    [state, actions, toast, notify]
+    () => ({ state, settings: state?.settings, courses: state?.courses, assignments: state?.assignments, actions, toast, notify, databasePath, storageKind: desktop ? 'sqlite' : 'localStorage' }),
+    [state, actions, toast, notify, databasePath, desktop]
   );
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  if (!state) return <div className="page" role="alert">
+    <h1>{loading ? '正在读取本机数据…' : '数据读取失败'}</h1>
+    {storageError && <p>{storageError}。原数据未清空，请检查磁盘空间和目录权限后重试。</p>}
+    {!loading && <button className="btn btn-primary" onClick={initialize}>重试读取</button>}
+  </div>;
+  return <StoreContext.Provider value={value}>
+    {storageError && <div className="storage-error" role="alert">
+      保存失败：{storageError}。本次更改未保存，请重试；原有数据保持不变。
+      <button onClick={() => setStorageError('')}>关闭提示</button>
+    </div>}
+    {children}
+  </StoreContext.Provider>;
 }
 
 export function useStore() {

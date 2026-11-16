@@ -13,7 +13,7 @@ import { DEFAULT_PERIOD_TIMES, STORAGE_KEY } from '../lib/storage.js';
 import { DownloadIcon, UploadIcon, RefreshIcon, TrashIcon, InfoIcon } from './Icons.jsx';
 
 export default function SettingsPage() {
-  const { state, settings, courses, assignments, actions, notify } = useStore();
+  const { state, settings, courses, assignments, actions, notify, storageKind, databasePath } = useStore();
   const now = useBeijingNow();
   const info = getSemesterInfo(settings.startDate, settings.totalWeeks, now.dateStr);
   const statusText =
@@ -67,27 +67,27 @@ export default function SettingsPage() {
         throw new Error('文件结构不正确');
       }
       if (!window.confirm('导入备份会覆盖当前全部数据，确定继续吗？')) return;
-      actions.replaceState(data);
+      if (!await actions.replaceState(data)) return;
       notify('备份已导入，课表与作业已恢复');
     } catch (error) {
       notify(`备份文件无法导入：${error.message || error}`, 'error');
     }
   };
 
-  const handleLoadDemo = () => {
+  const handleLoadDemo = async () => {
     if (
       (courses.length > 0 || assignments.length > 0) &&
       !window.confirm('载入示例数据会覆盖当前课表与作业，确定继续吗？')
     ) {
       return;
     }
-    actions.loadDemo();
+    if (!await actions.loadDemo()) return;
     notify('已载入示例课表与作业数据');
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!window.confirm('确定清空所有课表和作业数据吗？此操作不可撤销，建议先导出备份。')) return;
-    actions.resetAll();
+    if (!await actions.resetAll()) return;
     notify('所有数据已清空');
   };
 
@@ -206,7 +206,8 @@ export default function SettingsPage() {
             </span>
           </div>
           <p className="settings-text">
-            数据保存在本机浏览器 localStorage 中，换浏览器或清理缓存前请先导出备份。
+            {storageKind === 'sqlite' ? '数据保存在本机 SQLite 数据库中，建议定期导出备份。'
+              : '数据保存在本机浏览器 localStorage 中，换浏览器或清理缓存前请先导出备份。'}
           </p>
           <div className="settings-actions">
             <button type="button" className="btn btn-ghost" onClick={handleExport}>
@@ -236,7 +237,7 @@ export default function SettingsPage() {
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>关于</h2>
-            <span className="settings-status">v1.0.0</span>
+            <span className="settings-status">v1.3.0</span>
           </div>
           <div className="about-list">
             <p>
@@ -244,7 +245,8 @@ export default function SettingsPage() {
               CoursePilot 课表助手：个人课表与课程作业管理系统，支持课表导入、周次切换、单双周、实验课与作业截止提醒。
             </p>
             <p>时间基准：北京时间（UTC+8），不依赖电脑本地时区。</p>
-            <p>存储位置：浏览器 localStorage（键名 {STORAGE_KEY}）。</p>
+            <p style={{ overflowWrap: 'anywhere' }}>存储位置：{storageKind === 'sqlite'
+              ? databasePath : `浏览器 localStorage（键名 ${STORAGE_KEY}）`}。</p>
             <p>解析课表仅在本机进行，网页源码与个人数据不会上传到服务器。</p>
           </div>
         </section>

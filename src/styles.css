@@ -2260,3 +2260,13 @@ textarea {
     width: 100%;
   }
 }
+:root .storage-error {
+  position: sticky;
+  top: 0;
+  z-index: 10000;
+  padding: 14px 20px;
+  background: #fff0f0;
+  color: #9f1c1c;
+  border-bottom: 1px solid #e9aaaa;
+}
+.storage-error button { margin-left: 12px; }

@@ -49,13 +49,14 @@ export default function ReminderScheduler() {
             assignmentId: assignment.id,
           })
         )
-          .then((result) => {
+          .then(async (result) => {
             if (result?.ok) {
               retryAfterRef.current.delete(assignment.id);
               warnedRef.current.delete(assignment.id);
-              actions.markAssignmentReminded(assignment.id, Date.now(), {
+              const saved = await actions.markAssignmentReminded(assignment.id, Date.now(), {
                 dueAt: assignment.dueAt, reminderMinutes: assignment.reminderMinutes,
               });
+              if (!saved) failed('通知已显示，但提醒记录保存失败');
             } else failed(result?.error);
           })
           .catch((error) => {

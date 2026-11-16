@@ -2,6 +2,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('coursepilotDesktop', {
   isDesktop: true,
+  database: {
+    initialize: (payload) => ipcRenderer.invoke('database-initialize', payload),
+    save: (payload) => ipcRenderer.invoke('database-save', payload),
+  },
   openSchool: () => ipcRenderer.invoke('open-school'),
   notify: (payload) => ipcRenderer.invoke('notify-assignment', payload),
   onNeuImport: (callback) => {

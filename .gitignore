@@ -4,3 +4,11 @@ release
 .DS_Store
 *.local
 npm-debug.log*
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+localstorage-before-sqlite-*.json
+before-sqlite-upgrade-*.json
+coursepilot-backup-*.json

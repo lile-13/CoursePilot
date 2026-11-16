@@ -316,7 +316,7 @@ export default function ImportPage({ onDone, desktopImport }) {
     }));
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (!draft || draft.sessions.length === 0) return;
     const grouped = new Map();
     const seen = new Set();
@@ -377,7 +377,7 @@ export default function ImportPage({ onDone, desktopImport }) {
       return;
     }
 
-    actions.saveImportedCourses(courses, importMode, draft.settingsPatch || {});
+    if (!await actions.saveImportedCourses(courses, importMode, draft.settingsPatch || {})) return;
     const sessionCount = courses.reduce((total, course) => total + course.sessions.length, 0);
     notify(
       importMode === 'replace'

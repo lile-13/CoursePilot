@@ -14,8 +14,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { createNotificationService } = require('./notifications.cjs');
+const { openDatabase } = require('./database.cjs');
 
-const APP_PORT = 17890;
+// A separate loopback port allows isolated tests without stopping a running copy.
+const configuredPort = Number(process.env.CPX_PORT || 17890);
+const APP_PORT = Number.isInteger(configuredPort) && configuredPort >= 1024 && configuredPort <= 65535
+  ? configuredPort : 17890;
 const APP_ORIGIN = `http://127.0.0.1:${APP_PORT}`;
 const DEV_SERVER_URL = process.env.CPX_DEV_URL || '';
 const WINDOW_URL = DEV_SERVER_URL || APP_ORIGIN;
@@ -51,6 +55,7 @@ let trayBalloonShown = false;
 let desktopSettings = {};
 const APP_ID = 'com.coursepilot.desktop';
 let notificationService = null;
+let database = null;
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(app.isPackaged ? APP_ID : process.execPath);
@@ -462,6 +467,22 @@ if (!hasSingleInstanceLock) {
       console.warn('[CoursePilot] 创建托盘失败', error);
     }
     ipcMain.handle('open-school', () => openSchool());
+    const databaseRequest = (operation) => (event, payload) => {
+      try {
+        if (event.sender !== mainWindow?.webContents ||
+            new URL(event.senderFrame.url).origin !== new URL(WINDOW_URL).origin) {
+          throw new Error('不允许此页面访问数据库');
+        }
+        database ||= openDatabase(DEV_SERVER_URL
+          ? path.join(app.getPath('userData'), 'development') : app.getPath('userData'));
+        return { ok: true, ...operation(database, payload) };
+      } catch (error) {
+        console.error('[CoursePilot] 数据库操作失败', error);
+        return { ok: false, error: error.message || String(error) };
+      }
+    };
+    ipcMain.handle('database-initialize', databaseRequest((db, payload) => db.initialize(payload)));
+    ipcMain.handle('database-save', databaseRequest((db, payload) => db.save(payload?.state, payload?.revision)));
     let notificationRegistrationError = '';
     try { registerWindowsNotifications(); }
     catch (error) {
@@ -505,6 +526,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   isQuitting = true;
   notificationService?.close();
+  database?.close();
   if (tray) {
     tray.destroy();
     tray = null;

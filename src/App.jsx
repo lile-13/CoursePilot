@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StoreProvider } from './store.jsx';
+import { StoreProvider, useStore } from './store.jsx';
 import Header from './components/Header.jsx';
 import SchedulePage from './components/SchedulePage.jsx';
 import AssignmentsPage from './components/AssignmentsPage.jsx';
@@ -16,6 +16,7 @@ function readTabFromHash() {
 }
 
 function Shell() {
+  const { storageKind } = useStore();
   const [activeTab, setActiveTab] = useState(readTabFromHash);
   const [desktopImport, setDesktopImport] = useState(null);
 
@@ -63,7 +64,7 @@ function Shell() {
         {activeTab === 'settings' ? <SettingsPage /> : null}
       </main>
       <footer className="app-footer">
-        <span>数据保存在本机浏览器 localStorage · 关闭页面后仍然保留</span>
+        <span>数据保存在本机{storageKind === 'sqlite' ? ' SQLite 数据库' : '浏览器 localStorage'} · 关闭后仍然保留</span>
         <span className="dot">·</span>
         <span>北京时间 UTC+8</span>
       </footer>

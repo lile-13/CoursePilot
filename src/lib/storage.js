@@ -95,6 +95,28 @@ export function normalizeState(input) {
   return { settings, courses, assignments };
 }
 
+// Imports and migrations must not silently drop malformed records during normalization.
+export function normalizeStateForImport(input) {
+  if (!input || !input.settings || typeof input.settings !== 'object' || Array.isArray(input.settings) ||
+      !Array.isArray(input.courses) || !Array.isArray(input.assignments)) throw new Error('数据结构不完整');
+  for (const course of input.courses) {
+    if (typeof course?.name !== 'string' || !course.name.trim() || !Array.isArray(course.sessions)) {
+      throw new Error('存在不完整的课程记录');
+    }
+    for (const session of course.sessions) {
+      const day = Number(session?.day), start = Number(session?.start), end = Number(session?.end);
+      if (![day, start, end].every(Number.isInteger) || day < 1 || day > 7 || start < 1 || end < start || end > 16) {
+        throw new Error('存在无效上课安排，未丢弃任何记录');
+      }
+      if (session.weeks?.raw && !parseWeekText(session.weeks.raw)) throw new Error('存在无法识别的周次，原数据已保留');
+    }
+  }
+  if (input.assignments.some(a => typeof a?.title !== 'string' || !a.title.trim())) {
+    throw new Error('存在不完整的作业记录');
+  }
+  return normalizeState(input);
+}
+
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);

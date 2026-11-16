@@ -47,8 +47,8 @@ export default function SchedulePage({ onGoImport }) {
     }
   }
 
-  const handleDemo = () => {
-    actions.loadDemo();
+  const handleDemo = async () => {
+    if (!await actions.loadDemo()) return;
     notify('已载入示例课表与作业数据');
     setWeek(info.weekNumber);
   };
