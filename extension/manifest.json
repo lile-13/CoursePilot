@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "CoursePilot 课表助手 · 东北大学",
+  "version": "1.4.0",
+  "description": "在东北大学教务系统「我的课表」页面注入导入按钮，把课表数据回传到 CoursePilot 桌面端或网页端预览保存。",
+  "permissions": ["clipboardWrite"],
+  "host_permissions": [
+    "*://jwxt.neu.edu.cn/*",
+    "*://*.neu.edu.cn/*",
+    "*://219.216.96.4/*",
+    "http://127.0.0.1:17890/*",
+    "http://127.0.0.1:5173/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://jwxt.neu.edu.cn/*",
+        "*://*.neu.edu.cn/*",
+        "*://219.216.96.4/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ]
+}

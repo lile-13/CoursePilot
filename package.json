@@ -1,0 +1,65 @@
+{
+  "name": "coursepilot",
+  "private": true,
+  "version": "1.2.0",
+  "type": "module",
+  "description": "个人课表与课程作业管理系统",
+  "author": "CoursePilot",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "concurrently -k \"npm:dev\" \"wait-on http://127.0.0.1:5173 && cross-env CPX_DEV_URL=http://127.0.0.1:5173 electron .\"",
+    "electron:build": "npm run build && electron-builder --win portable",
+    "test:neu": "node scripts/test-neu-extract.mjs",
+    "test": "node --test scripts/*.test.mjs && npm run test:neu"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^31.0.1",
+    "vite": "^7.0.0",
+    "wait-on": "^9.0.1"
+  },
+  "build": {
+    "appId": "com.coursepilot.desktop",
+    "productName": "CoursePilot",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "extension",
+        "to": "extension"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "CoursePilot-${version}.exe"
+    }
+  }
+}
+

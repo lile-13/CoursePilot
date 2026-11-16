@@ -1,0 +1,17 @@
+export const BOOKMARKLET_CODE = [
+  'javascript:(function(){',
+  'var h=document.documentElement.outerHTML;',
+  'function tip(t){var d=document.createElement("div");',
+  'd.style.cssText="position:fixed;right:24px;bottom:24px;z-index:2147483647;background:#111827;color:#fff;padding:12px 18px;border-radius:10px;font:14px/1.6 system-ui;box-shadow:0 12px 30px rgba(0,0,0,.35);max-width:320px";',
+  'd.textContent=t;document.body.appendChild(d);setTimeout(function(){d.remove()},4200)}',
+  'function manual(){var t=document.createElement("textarea");t.value=h;',
+  't.style.cssText="position:fixed;inset:0;width:100%;height:100%;z-index:2147483646;font-size:12px";',
+  'document.body.appendChild(t);t.focus();t.select();var ok=false;',
+  'try{ok=document.execCommand("copy")}catch(e){}',
+  'tip(ok?"课表页面源码已复制，请回到课表助手粘贴":"已选中源码，请按 Ctrl+C 复制");',
+  'setTimeout(function(){t.remove()},20000)}',
+  'if(navigator.clipboard&&navigator.clipboard.writeText){',
+  'navigator.clipboard.writeText(h).then(function(){tip("课表页面源码已复制，请回到课表助手粘贴")},manual)',
+  '}else{manual()}',
+  '})();',
+].join('');
