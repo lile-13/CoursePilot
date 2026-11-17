@@ -67,6 +67,13 @@ test('真实桌面 Store + SQLite：写入失败保留预览和旧状态，成�
     await act(async () => root.unmount()); await mount();
     assert.equal(store.courses[0].name, '数据库导入测试', '重启不能被旧 localStorage 覆盖');
     assert.equal(localStorage.getItem(STORAGE_KEY), raw);
+    const reminderKey = '数据库导入测试:s1:2026-11-17:08:30';
+    const remindedAt = Date.now();
+    await act(async () => { await store.actions.markClassReminded(reminderKey, remindedAt); });
+    assert.equal(store.settings.classReminderLog[reminderKey], remindedAt);
+    assert.equal(store.settings.classReminderMinutes, 10);
+    await act(async () => root.unmount()); await mount();
+    assert.equal(store.settings.classReminderLog[reminderKey], remindedAt, '上课提醒记录重启后保留');
   } finally {
     if (root) await act(async () => root.unmount()); db.close(); dom.window.close();
     await rm(bundleDir, { recursive: true, force: true }); await rm(profile, { recursive: true, force: true });

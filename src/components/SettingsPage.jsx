@@ -10,6 +10,7 @@ import {
   weekdayIndex,
 } from '../lib/time.js';
 import { DEFAULT_PERIOD_TIMES, STORAGE_KEY } from '../lib/storage.js';
+import { CLASS_REMINDER_OPTIONS, normalizeClassReminderMinutes } from '../lib/classReminders.js';
 import { DownloadIcon, UploadIcon, RefreshIcon, TrashIcon, InfoIcon } from './Icons.jsx';
 
 export default function SettingsPage() {
@@ -200,6 +201,31 @@ export default function SettingsPage() {
 
         <section className="card settings-card">
           <div className="settings-card-head">
+            <h2>提醒</h2>
+            <span className="settings-status">仅软件运行时</span>
+          </div>
+          <label className="field">
+            <span className="field-label">上课前提醒</span>
+            <select
+              value={normalizeClassReminderMinutes(settings.classReminderMinutes)}
+              onChange={(event) =>
+                actions.updateSettings({ classReminderMinutes: Number(event.target.value) })
+              }
+            >
+              {CLASS_REMINDER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="field-hint">
+              到时间会弹出 Windows 通知，显示课程、教室和节次；最小化到托盘也会提醒，点击通知打开今日视图。同一节课只提醒一次。
+            </span>
+          </label>
+        </section>
+
+        <section className="card settings-card">
+          <div className="settings-card-head">
             <h2>数据管理</h2>
             <span className="settings-status">
               {courses.length} 门课程 · {assignments.length} 项作业
@@ -237,7 +263,7 @@ export default function SettingsPage() {
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>关于</h2>
-            <span className="settings-status">v1.3.0</span>
+            <span className="settings-status">v1.4.0</span>
           </div>
           <div className="about-list">
             <p>

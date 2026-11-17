@@ -2,9 +2,10 @@ import React from 'react';
 import { useStore } from '../store.jsx';
 import { useBeijingNow } from '../hooks.js';
 import { WEEKDAY_LABELS, formatMonthDay, getSemesterInfo } from '../lib/time.js';
-import { CalendarIcon, TasksIcon, UploadIcon, SettingsIcon } from './Icons.jsx';
+import { CalendarIcon, ClockIcon, TasksIcon, UploadIcon, SettingsIcon } from './Icons.jsx';
 
 const TABS = [
+  { key: 'today', label: '今日', Icon: ClockIcon },
   { key: 'schedule', label: '课表', Icon: CalendarIcon },
   { key: 'assignments', label: '作业', Icon: TasksIcon },
   { key: 'import', label: '导入课表', Icon: UploadIcon },

@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { StoreProvider, useStore } from './store.jsx';
 import Header from './components/Header.jsx';
+import TodayPage from './components/TodayPage.jsx';
 import SchedulePage from './components/SchedulePage.jsx';
 import AssignmentsPage from './components/AssignmentsPage.jsx';
 import ImportPage from './components/ImportPage.jsx';
 import SettingsPage from './components/SettingsPage.jsx';
 import Toast from './components/Toast.jsx';
 import ReminderScheduler from './components/ReminderScheduler.jsx';
+import ClassReminderScheduler from './components/ClassReminderScheduler.jsx';
 
-const TAB_KEYS = ['schedule', 'assignments', 'import', 'settings'];
+const TAB_KEYS = ['today', 'schedule', 'assignments', 'import', 'settings'];
 
 function readTabFromHash() {
   const hash = window.location.hash.replace(/^#\/?/, '');
-  return TAB_KEYS.includes(hash) ? hash : 'schedule';
+  return TAB_KEYS.includes(hash) ? hash : 'today';
 }
 
 function Shell() {
@@ -53,6 +55,12 @@ function Shell() {
     <div className="app">
       <Header activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="app-main">
+        {activeTab === 'today' ? (
+          <TodayPage
+            onGoSchedule={() => setActiveTab('schedule')}
+            onGoAssignments={() => setActiveTab('assignments')}
+          />
+        ) : null}
         {activeTab === 'schedule' ? <SchedulePage onGoImport={() => setActiveTab('import')} /> : null}
         {activeTab === 'assignments' ? <AssignmentsPage /> : null}
         {activeTab === 'import' ? (
@@ -77,6 +85,7 @@ export default function App() {
   return (
     <StoreProvider>
       <ReminderScheduler />
+      <ClassReminderScheduler />
       <Shell />
     </StoreProvider>
   );

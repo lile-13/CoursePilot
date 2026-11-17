@@ -33,6 +33,34 @@ test('只有 Windows 发出 show 事件才返回成功，成功后仍能点击�
   service.close();
 });
 
+test('上课提醒点击时把 target 和 classKey 原样传给主进程', async () => {
+  const calls = [];
+  const instances = [];
+  class NativeNotification extends EventEmitter {
+    static isSupported() { return true; }
+    constructor(options) { super(); this.options = options; instances.push(this); }
+    show() {}
+    close() {}
+  }
+  const service = createNotificationService({
+    Notification: NativeNotification,
+    timeoutMs: 1000,
+    onClick: (id, payload) => calls.push({ id, payload }),
+  });
+  const payload = {
+    title: '上课提醒：高等数学',
+    body: '教室：A101',
+    target: 'today',
+    classKey: 'c1:s1:2026-11-17:08:30',
+  };
+  const result = service.notify(payload);
+  instances[0].emit('show');
+  assert.deepEqual(await result, { ok: true });
+  instances[0].emit('click');
+  assert.deepEqual(calls, [{ id: undefined, payload }]);
+  service.close();
+});
+
 test('Windows 异步发送失败返回失败，下一次可以重试', async () => {
   const { service, instances } = setup();
   const first = service.notify();

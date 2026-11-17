@@ -5,6 +5,10 @@ import { nextColorIndex } from './lib/classColors.js';
 import { importCourses } from './lib/importCourses.js';
 import { createDemoState } from './lib/demo.js';
 import { normalizeReminderMinutes } from './lib/reminders.js';
+import {
+  normalizeClassReminderMinutes,
+  pruneClassReminderLog,
+} from './lib/classReminders.js';
 import { createPersistence } from './lib/persistence.js';
 
 const StoreContext = createContext(null);
@@ -60,7 +64,14 @@ export function StoreProvider({ children }) {
   const actions = useMemo(
     () => ({
       updateSettings(patch) {
-        return setState((current) => ({ ...current, settings: { ...current.settings, ...patch } }));
+        const nextPatch = { ...patch };
+        if (patch.classReminderMinutes !== undefined) {
+          nextPatch.classReminderMinutes = normalizeClassReminderMinutes(patch.classReminderMinutes);
+        }
+        return setState((current) => ({
+          ...current,
+          settings: { ...current.settings, ...nextPatch },
+        }));
       },
 
       saveCourse(course) {
@@ -173,6 +184,22 @@ export function StoreProvider({ children }) {
               assignment.status !== 'done'
             )) ? { ...assignment, reminderNotifiedAt: at } : assignment
           ),
+        }));
+      },
+
+      markClassReminded(key, at = Date.now()) {
+        return setState((current) => ({
+          ...current,
+          settings: {
+            ...current.settings,
+            classReminderMinutes: normalizeClassReminderMinutes(
+              current.settings.classReminderMinutes
+            ),
+            classReminderLog: pruneClassReminderLog(
+              { ...(current.settings.classReminderLog || {}), [key]: at },
+              at
+            ),
+          },
         }));
       },
 

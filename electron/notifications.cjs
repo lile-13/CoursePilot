@@ -36,7 +36,7 @@ function createNotificationService({ Notification, onClick, timeoutMs = 10000 })
           active.delete(notification);
           finish({ ok: false, error: '通知在显示前已关闭' });
         });
-        notification.on('click', () => onClick(payload.assignmentId));
+        notification.on('click', () => onClick(payload.assignmentId, payload));
         notification.show();
       } catch (error) {
         fail(error.message || error);

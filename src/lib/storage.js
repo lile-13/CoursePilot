@@ -1,6 +1,7 @@
 import { addDays, getBeijingNow, weekdayIndex } from './time.js';
 import { parseWeekText } from './weeks.js';
 import { normalizeReminderMinutes } from './reminders.js';
+import { normalizeClassReminderMinutes } from './classReminders.js';
 
 export const STORAGE_KEY = 'coursepilot.data.v1';
 
@@ -28,6 +29,8 @@ export function defaultSettings() {
     totalWeeks: 20,
     periodsPerDay: DEFAULT_PERIOD_TIMES.length,
     periodTimes: DEFAULT_PERIOD_TIMES.map((item) => ({ ...item })),
+    classReminderMinutes: 10,
+    classReminderLog: {},
   };
 }
 
@@ -49,6 +52,13 @@ export function normalizeState(input) {
     start: times[index]?.start || DEFAULT_PERIOD_TIMES[index]?.start || '08:00',
     end: times[index]?.end || DEFAULT_PERIOD_TIMES[index]?.end || '08:45',
   }));
+  settings.classReminderMinutes = normalizeClassReminderMinutes(settings.classReminderMinutes);
+  settings.classReminderLog =
+    settings.classReminderLog &&
+    typeof settings.classReminderLog === 'object' &&
+    !Array.isArray(settings.classReminderLog)
+      ? settings.classReminderLog
+      : {};
 
   const courses = Array.isArray(input.courses)
     ? input.courses

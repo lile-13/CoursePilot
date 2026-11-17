@@ -78,6 +78,14 @@ function openAssignments() {
   showMainWindow('assignments');
 }
 
+function handleNotificationClick(_assignmentId, payload) {
+  if (payload?.target === 'today') {
+    showMainWindow('today');
+    return;
+  }
+  openAssignments();
+}
+
 function getDesktopSettingsPath() {
   return path.join(app.getPath('userData'), 'desktop-settings.json');
 }
@@ -489,7 +497,7 @@ if (!hasSingleInstanceLock) {
       notificationRegistrationError = error.message;
       console.warn('[CoursePilot] 通知注册失败', error);
     }
-    notificationService = createNotificationService({ Notification, onClick: openAssignments });
+    notificationService = createNotificationService({ Notification, onClick: handleNotificationClick });
     ipcMain.handle('notify-assignment', (_event, payload) => {
       if (notificationRegistrationError) return { ok: false, error: notificationRegistrationError };
       return notificationService.notify(payload);
