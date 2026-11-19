@@ -5,9 +5,30 @@ contextBridge.exposeInMainWorld('coursepilotDesktop', {
   database: {
     initialize: (payload) => ipcRenderer.invoke('database-initialize', payload),
     save: (payload) => ipcRenderer.invoke('database-save', payload),
+    read: () => ipcRenderer.invoke('database-read'),
   },
   openSchool: () => ipcRenderer.invoke('open-school'),
   notify: (payload) => ipcRenderer.invoke('notify-assignment', payload),
+  getPreferences: () => ipcRenderer.invoke('desktop-get-preferences'),
+  setAutoLaunch: (enabled) => ipcRenderer.invoke('desktop-set-auto-launch', enabled),
+  showMiniWindow: () => ipcRenderer.invoke('mini-window-show'),
+  hideMiniWindow: () => ipcRenderer.invoke('mini-window-hide'),
+  toggleMiniWindow: () => ipcRenderer.invoke('mini-window-toggle'),
+  openMain: (route) => ipcRenderer.invoke('open-main', route),
+  onDatabaseChanged: (callback) => {
+    const listener = () => {
+      callback();
+    };
+    ipcRenderer.on('database-changed', listener);
+    return () => ipcRenderer.removeListener('database-changed', listener);
+  },
+  onPreferencesChanged: (callback) => {
+    const listener = (_event, payload) => {
+      callback(payload);
+    };
+    ipcRenderer.on('desktop-preferences-changed', listener);
+    return () => ipcRenderer.removeListener('desktop-preferences-changed', listener);
+  },
   onNeuImport: (callback) => {
     const listener = (_event, payload) => {
       callback(payload);

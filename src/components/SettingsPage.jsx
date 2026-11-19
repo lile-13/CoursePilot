@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store.jsx';
 import { useBeijingNow } from '../hooks.js';
 import {
@@ -16,7 +16,64 @@ import { DownloadIcon, UploadIcon, RefreshIcon, TrashIcon, InfoIcon } from './Ic
 export default function SettingsPage() {
   const { state, settings, courses, assignments, actions, notify, storageKind, databasePath } = useStore();
   const now = useBeijingNow();
+  const desktopApi = typeof window !== 'undefined' ? window.coursepilotDesktop : null;
+  const [desktopPrefs, setDesktopPrefs] = useState(null);
+  const [desktopBusy, setDesktopBusy] = useState(false);
   const info = getSemesterInfo(settings.startDate, settings.totalWeeks, now.dateStr);
+
+  useEffect(() => {
+    if (!desktopApi?.getPreferences) return undefined;
+    let alive = true;
+    desktopApi
+      .getPreferences()
+      .then((result) => {
+        if (alive && result?.ok) setDesktopPrefs(result);
+      })
+      .catch(() => {});
+    const off = desktopApi.onPreferencesChanged?.((patch) => {
+      if (alive) setDesktopPrefs((current) => ({ ...(current || {}), ...patch }));
+    });
+    return () => {
+      alive = false;
+      off?.();
+    };
+  }, [desktopApi]);
+
+  const handleAutoLaunch = async (enabled) => {
+    if (!desktopApi?.setAutoLaunch || desktopBusy) return;
+    setDesktopBusy(true);
+    try {
+      const result = await desktopApi.setAutoLaunch(enabled);
+      if (!result?.ok) {
+        notify(result?.error || '开机自启动设置失败', 'error');
+        return;
+      }
+      setDesktopPrefs((current) => ({
+        ...(current || {}),
+        autoLaunch: { ...(current?.autoLaunch || {}), enabled: result.enabled },
+      }));
+      notify(enabled ? '已开启开机自启动' : '已关闭开机自启动');
+    } finally {
+      setDesktopBusy(false);
+    }
+  };
+
+  const handleMiniVisible = async (visible) => {
+    if (!desktopApi || desktopBusy) return;
+    setDesktopBusy(true);
+    try {
+      const result = visible
+        ? await desktopApi.showMiniWindow()
+        : await desktopApi.hideMiniWindow();
+      if (!result?.ok) {
+        notify(result?.error || '悬浮窗操作失败', 'error');
+        return;
+      }
+      setDesktopPrefs((current) => ({ ...(current || {}), miniVisible: result.visible }));
+    } finally {
+      setDesktopBusy(false);
+    }
+  };
   const statusText =
     info.status === 'before' ? '学期未开始' : info.status === 'after' ? '学期已结束' : `第 ${info.rawWeek} 周`;
 
@@ -224,6 +281,49 @@ export default function SettingsPage() {
           </label>
         </section>
 
+        {storageKind === 'sqlite' ? (
+          <section className="card settings-card">
+            <div className="settings-card-head">
+              <h2>桌面与启动</h2>
+              <span className="settings-status">仅桌面版</span>
+            </div>
+            <label className="toggle-row">
+              <span>
+                <strong>开机自启动</strong>
+                <small>
+                  登录 Windows 后静默进入托盘，不弹出主窗口；关闭窗口后上课与作业提醒继续运行。
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                checked={Boolean(desktopPrefs?.autoLaunch?.enabled)}
+                disabled={desktopBusy || !desktopPrefs?.isPackaged}
+                onChange={(event) => handleAutoLaunch(event.target.checked)}
+              />
+            </label>
+            <label className="toggle-row">
+              <span>
+                <strong>迷你悬浮窗</strong>
+                <small>
+                  在桌面右下角显示当前课、下一节课和最近待交作业，点击悬浮窗打开今日视图。
+                </small>
+              </span>
+              <input
+                type="checkbox"
+                checked={Boolean(desktopPrefs?.miniVisible)}
+                disabled={desktopBusy || !desktopPrefs}
+                onChange={(event) => handleMiniVisible(event.target.checked)}
+              />
+            </label>
+            {desktopPrefs && !desktopPrefs.isPackaged ? (
+              <p className="field-hint">开发模式无法注册开机自启动，打包版可用；悬浮窗可直接测试。</p>
+            ) : null}
+            <p className="field-hint">
+              开机自启动指向当前 EXE 路径，移动或重命名 EXE 后请重新开关一次。从托盘“退出 CoursePilot”后提醒会停止。
+            </p>
+          </section>
+        ) : null}
+
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>数据管理</h2>
@@ -263,7 +363,7 @@ export default function SettingsPage() {
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>关于</h2>
-            <span className="settings-status">v1.4.0</span>
+            <span className="settings-status">v1.5.0</span>
           </div>
           <div className="about-list">
             <p>

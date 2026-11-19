@@ -2610,3 +2610,209 @@ textarea {
   border-bottom: 1px solid #e9aaaa;
 }
 .storage-error button { margin-left: 12px; }
+
+/* ---------- 桌面与启动设置 ---------- */
+.toggle-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.toggle-row strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.toggle-row small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-3);
+}
+
+.toggle-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.toggle-row input[type='checkbox']:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ---------- 迷你悬浮窗 ---------- */
+body.mini-mode {
+  background: transparent;
+  overflow: hidden;
+}
+
+body.mini-mode #root {
+  height: 100vh;
+  min-height: 0;
+}
+
+.mini-shell {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #e3e7f2;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 38px rgba(28, 35, 51, 0.22);
+  font-family: var(--font);
+  color: var(--text);
+}
+
+.mini-bar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 8px 7px 13px;
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.mini-brand {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.mini-bar-actions {
+  -webkit-app-region: no-drag;
+  display: flex;
+  gap: 3px;
+}
+
+.mini-icon-btn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mini-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.mini-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  padding: 9px 13px 10px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mini-content:hover {
+  background: #fafbff;
+}
+
+.mini-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-title {
+  font-size: 17px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-meta {
+  font-size: 11.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-countdown {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.mini-footer {
+  margin-top: auto;
+  padding-top: 7px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.mini-footer span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-footer .is-overdue {
+  color: var(--danger);
+}
+
+.mini-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px;
+  text-align: center;
+}
+
+.mini-state strong {
+  font-size: 13px;
+}
+
+.mini-state span {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.mini-retry {
+  margin-top: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+}

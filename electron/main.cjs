@@ -6,6 +6,7 @@ const {
   Menu,
   nativeImage,
   Notification,
+  screen,
   shell,
   Tray,
 } = require('electron');
@@ -56,13 +57,19 @@ let desktopSettings = {};
 const APP_ID = 'com.coursepilot.desktop';
 let notificationService = null;
 let database = null;
+let miniWindow = null;
+let miniVisible = false;
+let miniMoveTimer = null;
+
+const startHidden = process.argv.includes('--hidden');
+const isDevelopmentApp = () => Boolean(process.defaultApp) || Boolean(DEV_SERVER_URL);
 
 if (process.platform === 'win32') {
-  app.setAppUserModelId(app.isPackaged ? APP_ID : process.execPath);
+  app.setAppUserModelId(isDevelopmentApp() ? process.execPath : APP_ID);
 }
 
 function registerWindowsNotifications() {
-  if (process.platform !== 'win32' || !app.isPackaged) return;
+  if (process.platform !== 'win32' || isDevelopmentApp()) return;
   // Portable builds have no installer to create the Start menu/AUMID registration.
   // Point at the stable portable launcher, not its temporary extracted executable.
   const target = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
@@ -114,6 +121,49 @@ function saveDesktopSettings(patch) {
   }
 }
 
+function getLaunchPath() {
+  // Portable builds run from a temporary extraction directory; register the stable launcher instead.
+  return process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+}
+
+function loginItemOptions() {
+  return { path: getLaunchPath(), args: ['--hidden'] };
+}
+
+function readAutoLaunchState() {
+  if (process.platform !== 'win32') return { supported: false, enabled: false };
+  if (isDevelopmentApp()) return { supported: false, enabled: false };
+  try {
+    return {
+      supported: true,
+      enabled: Boolean(app.getLoginItemSettings(loginItemOptions()).openAtLogin),
+      path: getLaunchPath(),
+    };
+  } catch (error) {
+    return { supported: true, enabled: false, error: error.message };
+  }
+}
+
+function applyAutoLaunch(enabled) {
+  if (process.platform !== 'win32') throw new Error('仅 Windows 支持开机自启动');
+  if (isDevelopmentApp()) throw new Error('开机自启动仅在打包版可用');
+  app.setLoginItemSettings({ ...loginItemOptions(), openAtLogin: Boolean(enabled) });
+  const actual = Boolean(app.getLoginItemSettings(loginItemOptions()).openAtLogin);
+  if (actual !== Boolean(enabled)) {
+    throw new Error(enabled ? '系统未能启用开机自启动' : '系统未能关闭开机自启动');
+  }
+  saveDesktopSettings({ autoLaunch: Boolean(enabled) });
+  broadcastDesktopPreferences();
+  return actual;
+}
+
+function broadcastDesktopPreferences() {
+  const payload = { miniVisible, autoLaunch: readAutoLaunchState() };
+  for (const win of [mainWindow, miniWindow]) {
+    if (win && !win.isDestroyed()) win.webContents.send('desktop-preferences-changed', payload);
+  }
+}
+
 function loadAppIcon() {
   try {
     return nativeImage.createFromBuffer(
@@ -135,7 +185,7 @@ function loadTrayIcon() {
 }
 
 function showMainWindow(route) {
-  if (!mainWindow || mainWindow.isDestroyed()) createWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) createWindow(true);
   if (!mainWindow) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
@@ -185,6 +235,12 @@ function rebuildTrayMenu() {
     Menu.buildFromTemplate([
       { label: '打开主界面', click: () => showMainWindow('schedule') },
       { label: '查看作业', click: () => showMainWindow('assignments') },
+      {
+        label: '迷你悬浮窗',
+        type: 'checkbox',
+        checked: miniVisible,
+        click: () => toggleMiniWindow(),
+      },
       { type: 'separator' },
       {
         label: '关闭窗口时重新选择',
@@ -205,6 +261,125 @@ function createTray() {
   tray.setToolTip('CoursePilot · 课表与作业');
   tray.on('double-click', () => showMainWindow());
   rebuildTrayMenu();
+}
+
+const MINI_WIDTH = 348;
+const MINI_HEIGHT = 176;
+
+function getDefaultMiniBounds() {
+  const { workArea } = screen.getPrimaryDisplay();
+  return {
+    x: workArea.x + workArea.width - MINI_WIDTH - 18,
+    y: workArea.y + workArea.height - MINI_HEIGHT - 18,
+    width: MINI_WIDTH,
+    height: MINI_HEIGHT,
+  };
+}
+
+function normalizeMiniBounds(saved) {
+  const fallback = getDefaultMiniBounds();
+  if (!saved || !['x', 'y', 'width', 'height'].every((key) => Number.isFinite(Number(saved[key])))) {
+    return fallback;
+  }
+  const width = Math.min(Math.max(Number(saved.width), 300), 460);
+  const height = Math.min(Math.max(Number(saved.height), 140), 240);
+  const bounds = {
+    x: Math.round(Number(saved.x)),
+    y: Math.round(Number(saved.y)),
+    width,
+    height,
+  };
+  const visible = screen.getAllDisplays().some(({ workArea }) =>
+    bounds.x < workArea.x + workArea.width &&
+    bounds.x + width > workArea.x &&
+    bounds.y < workArea.y + workArea.height &&
+    bounds.y + height > workArea.y
+  );
+  return visible ? bounds : fallback;
+}
+
+function saveMiniBounds() {
+  if (!miniWindow || miniWindow.isDestroyed()) return;
+  const [x, y] = miniWindow.getPosition();
+  const [width, height] = miniWindow.getSize();
+  saveDesktopSettings({ miniBounds: { x, y, width, height } });
+}
+
+function scheduleSaveMiniBounds() {
+  clearTimeout(miniMoveTimer);
+  miniMoveTimer = setTimeout(() => {
+    miniMoveTimer = null;
+    saveMiniBounds();
+  }, 300);
+}
+
+function createMiniWindow() {
+  if (miniWindow && !miniWindow.isDestroyed()) return miniWindow;
+  const bounds = normalizeMiniBounds(desktopSettings.miniBounds);
+  miniWindow = new BrowserWindow({
+    ...bounds,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    hasShadow: false,
+    show: false,
+    title: 'CoursePilot 悬浮窗',
+    icon: appIcon || undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      backgroundThrottling: false,
+    },
+  });
+
+  miniWindow.setAlwaysOnTop(true, 'floating');
+  miniWindow.loadURL(`${WINDOW_URL}#mini`);
+  miniWindow.once('ready-to-show', () => {
+    if (miniVisible) miniWindow.showInactive();
+  });
+  miniWindow.on('moved', scheduleSaveMiniBounds);
+  miniWindow.on('close', (event) => {
+    if (isQuitting) return;
+    event.preventDefault();
+    hideMiniWindow();
+  });
+  miniWindow.on('closed', () => {
+    miniWindow = null;
+  });
+  return miniWindow;
+}
+
+function showMiniWindow() {
+  miniVisible = true;
+  const win = createMiniWindow();
+  if (!win.webContents.isLoadingMainFrame()) win.showInactive();
+  saveDesktopSettings({ miniVisible: true });
+  rebuildTrayMenu();
+  broadcastDesktopPreferences();
+}
+
+function hideMiniWindow() {
+  miniVisible = false;
+  if (miniWindow && !miniWindow.isDestroyed()) {
+    saveMiniBounds();
+    miniWindow.hide();
+  }
+  saveDesktopSettings({ miniVisible: false });
+  rebuildTrayMenu();
+  broadcastDesktopPreferences();
+}
+
+function toggleMiniWindow() {
+  if (miniVisible) hideMiniWindow();
+  else showMiniWindow();
 }
 
 function corsHeaders() {
@@ -384,7 +559,7 @@ function openSchool() {
   return { ok: true, browser: 'default' };
 }
 
-function createWindow() {
+function createWindow(showWhenReady = true) {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -393,6 +568,7 @@ function createWindow() {
     title: 'CoursePilot · 课表助手',
     backgroundColor: '#f5f7fb',
     icon: appIcon || undefined,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -433,6 +609,9 @@ function createWindow() {
     else quitApp();
   });
 
+  mainWindow.once('ready-to-show', () => {
+    if (showWhenReady && !mainWindow.isDestroyed()) mainWindow.show();
+  });
   mainWindow.loadURL(WINDOW_URL);
   const allowedOrigins = [APP_ORIGIN, DEV_SERVER_URL].filter(Boolean);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -461,7 +640,8 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
+    if (Array.isArray(argv) && argv.includes('--hidden')) return;
     showMainWindow();
   });
 
@@ -469,16 +649,31 @@ if (!hasSingleInstanceLock) {
     Menu.setApplicationMenu(null);
     loadDesktopSettings();
     appIcon = loadAppIcon();
+    if (desktopSettings.autoLaunch) {
+      try {
+        applyAutoLaunch(true);
+      } catch (error) {
+        console.warn('[CoursePilot] 恢复开机自启动失败', error);
+      }
+    }
     try {
       createTray();
     } catch (error) {
       console.warn('[CoursePilot] 创建托盘失败', error);
     }
     ipcMain.handle('open-school', () => openSchool());
+    const isTrustedWindowEvent = (event) => {
+      const windows = [mainWindow, miniWindow].filter((win) => win && !win.isDestroyed());
+      if (!windows.some((win) => win.webContents === event.sender)) return false;
+      try {
+        return new URL(event.senderFrame.url).origin === new URL(WINDOW_URL).origin;
+      } catch {
+        return false;
+      }
+    };
     const databaseRequest = (operation) => (event, payload) => {
       try {
-        if (event.sender !== mainWindow?.webContents ||
-            new URL(event.senderFrame.url).origin !== new URL(WINDOW_URL).origin) {
+        if (!isTrustedWindowEvent(event)) {
           throw new Error('不允许此页面访问数据库');
         }
         database ||= openDatabase(DEV_SERVER_URL
@@ -490,7 +685,53 @@ if (!hasSingleInstanceLock) {
       }
     };
     ipcMain.handle('database-initialize', databaseRequest((db, payload) => db.initialize(payload)));
-    ipcMain.handle('database-save', databaseRequest((db, payload) => db.save(payload?.state, payload?.revision)));
+    ipcMain.handle('database-read', databaseRequest((db) => db.read()));
+    ipcMain.handle('database-save', databaseRequest((db, payload) => {
+      const result = db.save(payload?.state, payload?.revision);
+      if (miniWindow && !miniWindow.isDestroyed()) {
+        miniWindow.webContents.send('database-changed');
+      }
+      return result;
+    }));
+    ipcMain.handle('desktop-get-preferences', (event) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面访问桌面设置' };
+      return {
+        ok: true,
+        isPackaged: !isDevelopmentApp(),
+        platform: process.platform,
+        autoLaunch: readAutoLaunchState(),
+        miniVisible,
+      };
+    });
+    ipcMain.handle('desktop-set-auto-launch', (event, enabled) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面修改桌面设置' };
+      try {
+        return { ok: true, enabled: applyAutoLaunch(Boolean(enabled)) };
+      } catch (error) {
+        return { ok: false, error: error.message || String(error) };
+      }
+    });
+    ipcMain.handle('mini-window-show', (event) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
+      showMiniWindow();
+      return { ok: true, visible: true };
+    });
+    ipcMain.handle('mini-window-hide', (event) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
+      hideMiniWindow();
+      return { ok: true, visible: false };
+    });
+    ipcMain.handle('mini-window-toggle', (event) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
+      toggleMiniWindow();
+      return { ok: true, visible: miniVisible };
+    });
+    ipcMain.handle('open-main', (event, route) => {
+      if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面打开主界面' };
+      const target = route === 'assignments' ? 'assignments' : route === 'schedule' ? 'schedule' : 'today';
+      showMainWindow(target);
+      return { ok: true };
+    });
     let notificationRegistrationError = '';
     try { registerWindowsNotifications(); }
     catch (error) {
@@ -519,7 +760,8 @@ if (!hasSingleInstanceLock) {
       return;
     }
 
-    createWindow();
+    createWindow(!startHidden || !tray);
+    if (desktopSettings.miniVisible) showMiniWindow();
     app.on('activate', () => {
       showMainWindow();
     });
@@ -533,6 +775,13 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  clearTimeout(miniMoveTimer);
+  miniMoveTimer = null;
+  if (miniWindow && !miniWindow.isDestroyed()) {
+    saveMiniBounds();
+    miniWindow.destroy();
+    miniWindow = null;
+  }
   notificationService?.close();
   database?.close();
   if (tray) {
