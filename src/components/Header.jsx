@@ -2,7 +2,15 @@ import React from 'react';
 import { useStore } from '../store.jsx';
 import { useBeijingNow } from '../hooks.js';
 import { WEEKDAY_LABELS, formatMonthDay, getSemesterInfo } from '../lib/time.js';
-import { CalendarIcon, ClockIcon, TasksIcon, UploadIcon, SettingsIcon } from './Icons.jsx';
+import {
+  CalendarIcon,
+  ClockIcon,
+  TasksIcon,
+  UploadIcon,
+  SettingsIcon,
+  MapPinIcon,
+} from './Icons.jsx';
+import coursePilotIcon from '../assets/coursepilot-icon.svg';
 
 const TABS = [
   { key: 'today', label: '今日', Icon: ClockIcon },
@@ -19,13 +27,20 @@ export default function Header({ activeTab, onTabChange }) {
   const weekText =
     info.status === 'before' ? '未开学' : info.status === 'after' ? '已结课' : `第 ${info.rawWeek} 周`;
 
+  const openPathly = () => {
+    const api = window.coursepilotDesktop;
+    if (api?.openPathly) {
+      api.openPathly();
+      return;
+    }
+    window.open('https://pathly.top', '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <header className="app-header">
       <div className="header-inner">
         <div className="brand">
-          <div className="brand-mark">
-            <CalendarIcon size={21} />
-          </div>
+          <img className="brand-mark" src={coursePilotIcon} alt="" width={40} height={40} />
           <div className="brand-text">
             <strong>CoursePilot</strong>
             <span>课表助手</span>
@@ -47,6 +62,15 @@ export default function Header({ activeTab, onTabChange }) {
               </button>
             );
           })}
+          <button
+            type="button"
+            className="nav-item nav-external"
+            onClick={openPathly}
+            title="打开 pathly.top"
+          >
+            <MapPinIcon size={16} />
+            <span>寻路</span>
+          </button>
         </nav>
 
         <div className="header-clock" title="北京时间（UTC+8），自动与网络时间保持一致">

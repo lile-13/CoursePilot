@@ -35,6 +35,38 @@ test('桌面写入串行化：快速连续修改不丢失，失败不改页面�
   } finally { if (original === undefined) delete globalThis.localStorage; else globalThis.localStorage = original; }
 });
 
+test('非首个账号初始化时忽略 localStorage 旧数据', async () => {
+  const original = globalThis.localStorage;
+  let payload;
+  globalThis.localStorage = {
+    getItem: () => {
+      throw new Error('不应读取本地旧数据');
+    },
+  };
+  try {
+    const controller = createPersistence({
+      allowLegacyMigration: false,
+      desktop: {
+        database: {
+          initialize: async (value) => {
+            payload = value;
+            return { ok: true, state: createEmptyState(), revision: 1, path: 'new-user.db' };
+          },
+        },
+      },
+      onState() {},
+      onError() {},
+    });
+    await controller.initialize();
+    assert.equal(payload.legacyRaw, null);
+    assert.equal(payload.initialState.courses.length, 0);
+    assert.deepEqual(payload.initialState.assignments, []);
+  } finally {
+    if (original === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = original;
+  }
+});
+
 test('损坏的旧数据传递明确错误且不删除；已有数据库可忽略旧数据', async () => {
   const original = globalThis.localStorage; let payload;
   globalThis.localStorage = { getItem: key => { assert.equal(key, STORAGE_KEY); return '{bad'; } };

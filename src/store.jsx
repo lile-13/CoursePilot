@@ -24,7 +24,7 @@ function prepareSessions(sessions) {
   }));
 }
 
-export function StoreProvider({ children }) {
+export function StoreProvider({ children, allowLegacyMigration = true }) {
   const desktop = typeof window !== 'undefined' && window.coursepilotDesktop?.isDesktop
     ? window.coursepilotDesktop : null;
   const [state, updateView] = useState(null);
@@ -33,7 +33,10 @@ export function StoreProvider({ children }) {
   const [databasePath, setDatabasePath] = useState('');
   const persistenceRef = useRef(null);
   if (!persistenceRef.current) persistenceRef.current = createPersistence({
-    desktop, onState: value => { updateView(value); setStorageError(''); }, onError: setStorageError,
+    desktop,
+    allowLegacyMigration,
+    onState: value => { updateView(value); setStorageError(''); },
+    onError: setStorageError,
   });
   const persistence = persistenceRef.current;
   const setState = useCallback((update) => persistence.commit(update), [persistence]);

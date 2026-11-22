@@ -1,7 +1,7 @@
 {
   "name": "coursepilot",
   "private": true,
-  "version": "1.5.0",
+  "version": "1.6.2",
   "type": "module",
   "description": "个人课表与课程作业管理系统",
   "author": "CoursePilot",

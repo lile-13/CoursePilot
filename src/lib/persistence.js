@@ -1,6 +1,9 @@
 import { createEmptyState, loadState, normalizeStateForImport, saveState, STORAGE_KEY } from './storage.js';
 
-export function desktopMigrationPayload() {
+export function desktopMigrationPayload(allowLegacyMigration = true) {
+  if (!allowLegacyMigration) {
+    return { legacyRaw: null, initialState: createEmptyState() };
+  }
   let legacyRaw = null;
   try {
     legacyRaw = localStorage.getItem(STORAGE_KEY);
@@ -15,7 +18,7 @@ export function desktopMigrationPayload() {
 }
 
 // Serialize read-modify-save operations. The UI only receives committed snapshots.
-export function createPersistence({ desktop, onState, onError }) {
+export function createPersistence({ desktop, allowLegacyMigration = true, onState, onError }) {
   let state = desktop ? null : loadState() || createEmptyState();
   let revision = 0;
   let queue = Promise.resolve();
@@ -26,7 +29,7 @@ export function createPersistence({ desktop, onState, onError }) {
     initialize() {
       if (!desktop) return Promise.resolve({ state, path });
       if (!initializing) {
-        initializing = desktop.database.initialize(desktopMigrationPayload()).then(result => {
+        initializing = desktop.database.initialize(desktopMigrationPayload(allowLegacyMigration)).then(result => {
           if (!result?.ok) throw new Error(result?.error || '数据库读取失败');
           state = result.state; revision = result.revision; path = result.path;
           return { state, path };

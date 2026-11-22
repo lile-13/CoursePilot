@@ -11,9 +11,16 @@ import {
 } from '../lib/time.js';
 import { DEFAULT_PERIOD_TIMES, STORAGE_KEY } from '../lib/storage.js';
 import { CLASS_REMINDER_OPTIONS, normalizeClassReminderMinutes } from '../lib/classReminders.js';
-import { DownloadIcon, UploadIcon, RefreshIcon, TrashIcon, InfoIcon } from './Icons.jsx';
+import {
+  DownloadIcon,
+  UploadIcon,
+  RefreshIcon,
+  TrashIcon,
+  InfoIcon,
+  LogoutIcon,
+} from './Icons.jsx';
 
-export default function SettingsPage() {
+export default function SettingsPage({ currentUser = null, onLogout = null }) {
   const { state, settings, courses, assignments, actions, notify, storageKind, databasePath } = useStore();
   const now = useBeijingNow();
   const desktopApi = typeof window !== 'undefined' ? window.coursepilotDesktop : null;
@@ -149,16 +156,61 @@ export default function SettingsPage() {
     notify('所有数据已清空');
   };
 
+  const handleLogout = async () => {
+    if (!onLogout) return;
+    if (!window.confirm('退出后将回到登录页，确定退出当前账号吗？')) return;
+    setDesktopBusy(true);
+    try {
+      await onLogout();
+    } catch (error) {
+      notify(error.message || '退出登录失败', 'error');
+    } finally {
+      setDesktopBusy(false);
+    }
+  };
+
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1>设置</h1>
-          <p className="page-sub">学期时间、节次时间与本地数据管理</p>
+          <p className="page-sub">账号、学期时间、节次时间、提醒与本地数据管理</p>
         </div>
       </div>
 
-      <div className="settings-grid">
+      <div className="settings-stack">
+        {currentUser ? (
+          <section className="card settings-card">
+            <div className="settings-card-head">
+              <h2>账号</h2>
+              <span className="settings-status">本地账号</span>
+            </div>
+            <div className="account-row">
+              <span className="account-avatar">
+                {(currentUser.username || '?').slice(0, 1).toUpperCase()}
+              </span>
+              <div className="account-main">
+                <strong>{currentUser.username}</strong>
+                <span>课表和作业保存在此账号独立的 SQLite 数据库中</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleLogout}
+                disabled={desktopBusy || !onLogout}
+              >
+                <LogoutIcon size={16} />
+                退出登录 / 切换账号
+              </button>
+            </div>
+            <p className="field-hint">
+              数据会在每次操作后自动保存；退出登录不会删除数据，重新登录即可恢复。
+            </p>
+          </section>
+        ) : null}
+
+        <div className="settings-columns">
+          <div className="settings-column">
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>学期与周次</h2>
@@ -218,48 +270,10 @@ export default function SettingsPage() {
 
         <section className="card settings-card">
           <div className="settings-card-head">
-            <h2>节次时间</h2>
-            <label className="inline-field">
-              <span>每天节数</span>
-              <select
-                value={settings.periodsPerDay}
-                onChange={(event) => handlePeriodsChange(event.target.value)}
-              >
-                {Array.from({ length: 11 }, (_, index) => index + 6).map((value) => (
-                  <option key={value} value={value}>
-                    {value} 节
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="period-list">
-            {settings.periodTimes.map((time, index) => (
-              <div className="period-row" key={index}>
-                <span className="period-no">第 {index + 1} 节</span>
-                <input
-                  type="time"
-                  value={time.start}
-                  onChange={(event) => updatePeriodTime(index, 'start', event.target.value)}
-                  aria-label={`第 ${index + 1} 节开始时间`}
-                />
-                <span className="period-dash">-</span>
-                <input
-                  type="time"
-                  value={time.end}
-                  onChange={(event) => updatePeriodTime(index, 'end', event.target.value)}
-                  aria-label={`第 ${index + 1} 节结束时间`}
-                />
-              </div>
-            ))}
-          </div>
-          <p className="field-hint">节次时间会显示在课表左侧，并用于判断“现在正在上”的课程。</p>
-        </section>
-
-        <section className="card settings-card">
-          <div className="settings-card-head">
             <h2>提醒</h2>
-            <span className="settings-status">仅软件运行时</span>
+            <span className="settings-status">
+              {storageKind === 'sqlite' ? '桌面版 · 托盘运行' : '桌面版可用'}
+            </span>
           </div>
           <label className="field">
             <span className="field-label">上课前提醒</span>
@@ -323,7 +337,9 @@ export default function SettingsPage() {
             </p>
           </section>
         ) : null}
+          </div>
 
+          <div className="settings-column">
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>数据管理</h2>
@@ -353,6 +369,12 @@ export default function SettingsPage() {
               <RefreshIcon size={16} />
               载入示例数据
             </button>
+          </div>
+          <div className="settings-danger">
+            <div>
+              <strong>危险操作</strong>
+              <span>清空后无法恢复，建议先导出备份。</span>
+            </div>
             <button type="button" className="btn btn-danger-ghost" onClick={handleReset}>
               <TrashIcon size={16} />
               清空所有数据
@@ -362,8 +384,48 @@ export default function SettingsPage() {
 
         <section className="card settings-card">
           <div className="settings-card-head">
+            <h2>节次时间</h2>
+            <label className="inline-field">
+              <span>每天节数</span>
+              <select
+                value={settings.periodsPerDay}
+                onChange={(event) => handlePeriodsChange(event.target.value)}
+              >
+                {Array.from({ length: 11 }, (_, index) => index + 6).map((value) => (
+                  <option key={value} value={value}>
+                    {value} 节
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="period-list">
+            {settings.periodTimes.map((time, index) => (
+              <div className="period-row" key={index}>
+                <span className="period-no">第 {index + 1} 节</span>
+                <input
+                  type="time"
+                  value={time.start}
+                  onChange={(event) => updatePeriodTime(index, 'start', event.target.value)}
+                  aria-label={`第 ${index + 1} 节开始时间`}
+                />
+                <span className="period-dash">-</span>
+                <input
+                  type="time"
+                  value={time.end}
+                  onChange={(event) => updatePeriodTime(index, 'end', event.target.value)}
+                  aria-label={`第 ${index + 1} 节结束时间`}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="field-hint">节次时间会显示在课表左侧，并用于判断“现在正在上”的课程。</p>
+        </section>
+
+        <section className="card settings-card">
+          <div className="settings-card-head">
             <h2>关于</h2>
-            <span className="settings-status">v1.5.0</span>
+            <span className="settings-status">v1.6.2</span>
           </div>
           <div className="about-list">
             <p>
@@ -376,6 +438,8 @@ export default function SettingsPage() {
             <p>解析课表仅在本机进行，网页源码与个人数据不会上传到服务器。</p>
           </div>
         </section>
+          </div>
+        </div>
       </div>
     </div>
   );

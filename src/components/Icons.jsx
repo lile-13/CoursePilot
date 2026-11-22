@@ -202,3 +202,21 @@ export function ClipboardIcon(props) {
     </Svg>
   );
 }
+
+export function UserIcon(props) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </Svg>
+  );
+}
+
+export function LogoutIcon(props) {
+  return (
+    <Svg {...props}>
+      <path d="M14 4.5h3.5A2.5 2.5 0 0 1 20 7v10a2.5 2.5 0 0 1-2.5 2.5H14" />
+      <path d="M10 8l-4 4 4 4M6 12h9" />
+    </Svg>
+  );
+}

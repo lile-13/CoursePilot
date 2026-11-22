@@ -16,6 +16,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { createNotificationService } = require('./notifications.cjs');
 const { openDatabase } = require('./database.cjs');
+const { createAccountStore } = require('./accounts.cjs');
 
 // A separate loopback port allows isolated tests without stopping a running copy.
 const configuredPort = Number(process.env.CPX_PORT || 17890);
@@ -57,12 +58,73 @@ let desktopSettings = {};
 const APP_ID = 'com.coursepilot.desktop';
 let notificationService = null;
 let database = null;
+let databaseUserId = null;
+let accountStore = null;
 let miniWindow = null;
 let miniVisible = false;
 let miniMoveTimer = null;
 
 const startHidden = process.argv.includes('--hidden');
 const isDevelopmentApp = () => Boolean(process.defaultApp) || Boolean(DEV_SERVER_URL);
+
+// Isolated test/profile directory, useful for running alongside an installed copy.
+if (process.env.CPX_USER_DATA_DIR) {
+  app.setPath('userData', path.resolve(process.env.CPX_USER_DATA_DIR));
+}
+
+function getDataDir() {
+  if (process.env.CPX_DATA_DIR) return path.resolve(process.env.CPX_DATA_DIR);
+  const userData = app.getPath('userData');
+  return DEV_SERVER_URL ? path.join(userData, 'development') : userData;
+}
+
+function getLegacyDatabasePath() {
+  return path.join(getDataDir(), 'coursepilot.db');
+}
+
+function closeDatabase() {
+  if (database) {
+    try {
+      database.close();
+    } catch (error) {
+      console.warn('[CoursePilot] 关闭数据库失败', error);
+    }
+  }
+  database = null;
+  databaseUserId = null;
+}
+
+function prepareFirstUserData({ userDir, isFirstUser }) {
+  if (!isFirstUser) return;
+  const sourceDir = getDataDir();
+  const source = getLegacyDatabasePath();
+  if (!fs.existsSync(source)) return;
+  const files = ['coursepilot.db', 'coursepilot.db-wal', 'coursepilot.db-shm'];
+  for (const name of files) {
+    const from = path.join(sourceDir, name);
+    if (!fs.existsSync(from)) continue;
+    fs.copyFileSync(from, path.join(userDir, name));
+  }
+  const copy = openDatabase(userDir);
+  try {
+    copy.read();
+  } finally {
+    copy.close();
+  }
+  // Keep the original database in place as a one-time backup; accounts use the copied file.
+  console.log('[CoursePilot] 已有数据库已归入第一个账号', userDir);
+}
+
+function authStatusPayload() {
+  if (!accountStore) return { ok: false, error: '账号系统尚未初始化' };
+  const status = accountStore.status();
+  return {
+    ok: true,
+    ...status,
+    legacyDatabaseExists: !status.hasUsers && fs.existsSync(getLegacyDatabasePath()),
+    dataDir: getDataDir(),
+  };
+}
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(isDevelopmentApp() ? process.execPath : APP_ID);
@@ -358,12 +420,30 @@ function createMiniWindow() {
 }
 
 function showMiniWindow() {
+  if (!accountStore?.currentUser()) return false;
   miniVisible = true;
   const win = createMiniWindow();
   if (!win.webContents.isLoadingMainFrame()) win.showInactive();
   saveDesktopSettings({ miniVisible: true });
   rebuildTrayMenu();
   broadcastDesktopPreferences();
+  return true;
+}
+
+function suspendMiniWindow() {
+  if (miniWindow && !miniWindow.isDestroyed()) {
+    saveMiniBounds();
+    miniWindow.destroy();
+    miniWindow = null;
+  }
+  miniVisible = false;
+  // Keep desktopSettings.miniVisible so the next login can restore the widget.
+  rebuildTrayMenu();
+  broadcastDesktopPreferences();
+}
+
+function resumeMiniWindow() {
+  if (desktopSettings.miniVisible) showMiniWindow();
 }
 
 function hideMiniWindow() {
@@ -648,6 +728,16 @@ if (!hasSingleInstanceLock) {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     loadDesktopSettings();
+    try {
+      accountStore = createAccountStore(getDataDir());
+    } catch (error) {
+      dialog.showErrorBox(
+        '账号数据无法读取',
+        `${error.message}\n\n请先备份数据目录中的 accounts.json，修复或恢复后再打开软件。`
+      );
+      app.quit();
+      return;
+    }
     appIcon = loadAppIcon();
     if (desktopSettings.autoLaunch) {
       try {
@@ -671,16 +761,31 @@ if (!hasSingleInstanceLock) {
         return false;
       }
     };
+    const isMainWindowEvent = (event) => {
+      if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents !== event.sender) return false;
+      try {
+        return new URL(event.senderFrame.url).origin === new URL(WINDOW_URL).origin;
+      } catch {
+        return false;
+      }
+    };
     const databaseRequest = (operation) => (event, payload) => {
       try {
         if (!isTrustedWindowEvent(event)) {
           throw new Error('不允许此页面访问数据库');
         }
-        database ||= openDatabase(DEV_SERVER_URL
-          ? path.join(app.getPath('userData'), 'development') : app.getPath('userData'));
+        const user = accountStore.currentUser();
+        if (!user) throw new Error('请先登录');
+        if (!database || databaseUserId !== user.id) {
+          closeDatabase();
+          database = openDatabase(accountStore.userDirFor(user.id));
+          databaseUserId = user.id;
+        }
         return { ok: true, ...operation(database, payload) };
       } catch (error) {
-        console.error('[CoursePilot] 数据库操作失败', error);
+        if (error.message !== '请先登录') {
+          console.error('[CoursePilot] 数据库操作失败', error);
+        }
         return { ok: false, error: error.message || String(error) };
       }
     };
@@ -693,6 +798,63 @@ if (!hasSingleInstanceLock) {
       }
       return result;
     }));
+    ipcMain.handle('auth-status', (event) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面访问账号' };
+      return authStatusPayload();
+    });
+    ipcMain.handle('auth-register', (event, payload) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面创建账号' };
+      try {
+        closeDatabase();
+        accountStore.register(
+          { username: payload?.username, password: payload?.password },
+          { prepareUser: prepareFirstUserData }
+        );
+        resumeMiniWindow();
+        return { ok: true, ...authStatusPayload() };
+      } catch (error) {
+        return { ok: false, error: error.message || String(error) };
+      }
+    });
+    ipcMain.handle('auth-login', (event, payload) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面登录' };
+      try {
+        closeDatabase();
+        accountStore.login({ username: payload?.username, password: payload?.password });
+        resumeMiniWindow();
+        return { ok: true, ...authStatusPayload() };
+      } catch (error) {
+        return { ok: false, error: error.message || String(error) };
+      }
+    });
+    ipcMain.handle('auth-logout', (event) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面退出登录' };
+      try {
+        closeDatabase();
+        accountStore.logout();
+        suspendMiniWindow();
+        return { ok: true, ...authStatusPayload() };
+      } catch (error) {
+        return { ok: false, error: error.message || String(error) };
+      }
+    });
+    ipcMain.handle('auth-change-password', (event, payload) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面修改密码' };
+      try {
+        accountStore.changePassword({
+          currentPassword: payload?.currentPassword,
+          newPassword: payload?.newPassword,
+        });
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: error.message || String(error) };
+      }
+    });
+    ipcMain.handle('open-pathly', (event) => {
+      if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面打开外部网站' };
+      shell.openExternal('https://pathly.top').catch(() => {});
+      return { ok: true };
+    });
     ipcMain.handle('desktop-get-preferences', (event) => {
       if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面访问桌面设置' };
       return {
@@ -713,8 +875,10 @@ if (!hasSingleInstanceLock) {
     });
     ipcMain.handle('mini-window-show', (event) => {
       if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
-      showMiniWindow();
-      return { ok: true, visible: true };
+      const shown = showMiniWindow();
+      return shown
+        ? { ok: true, visible: true }
+        : { ok: false, error: '请先登录后再打开悬浮窗' };
     });
     ipcMain.handle('mini-window-hide', (event) => {
       if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
@@ -724,7 +888,7 @@ if (!hasSingleInstanceLock) {
     ipcMain.handle('mini-window-toggle', (event) => {
       if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面操作悬浮窗' };
       toggleMiniWindow();
-      return { ok: true, visible: miniVisible };
+      return miniVisible ? { ok: true, visible: true } : { ok: false, error: '请先登录后再打开悬浮窗' };
     });
     ipcMain.handle('open-main', (event, route) => {
       if (!isTrustedWindowEvent(event)) return { ok: false, error: '不允许此页面打开主界面' };
@@ -760,8 +924,9 @@ if (!hasSingleInstanceLock) {
       return;
     }
 
-    createWindow(!startHidden || !tray);
-    if (desktopSettings.miniVisible) showMiniWindow();
+    const authenticated = Boolean(accountStore.currentUser());
+    createWindow(!startHidden || !tray || !authenticated);
+    if (authenticated) resumeMiniWindow();
     app.on('activate', () => {
       showMainWindow();
     });
@@ -783,7 +948,7 @@ app.on('before-quit', () => {
     miniWindow = null;
   }
   notificationService?.close();
-  database?.close();
+  closeDatabase();
   if (tray) {
     tray.destroy();
     tray = null;
