@@ -2,6 +2,7 @@ import { addDays, getBeijingNow, weekdayIndex } from './time.js';
 import { parseWeekText } from './weeks.js';
 import { normalizeReminderMinutes } from './reminders.js';
 import { normalizeClassReminderMinutes } from './classReminders.js';
+import { isMaterialExt, normalizeMaterialExt } from './materials.js';
 
 export const STORAGE_KEY = 'coursepilot.data.v1';
 
@@ -38,6 +39,7 @@ export function createEmptyState() {
   return {
     settings: defaultSettings(),
     courses: [],
+    materials: [],
     assignments: [],
   };
 }
@@ -85,6 +87,35 @@ export function normalizeState(input) {
         }))
     : [];
 
+  const courseIds = new Set(courses.map((course) => course.id));
+  const materials = Array.isArray(input.materials)
+    ? input.materials
+        .filter((item) => {
+          if (!item || typeof item !== 'object') return false;
+          const storedPath = String(item.storedPath || '');
+          return Boolean(
+            item.id &&
+              item.courseId &&
+              courseIds.has(item.courseId) &&
+              item.originalName &&
+              storedPath &&
+              isMaterialExt(item.ext) &&
+              !/^([a-zA-Z]:[\\/]|[\\/])/.test(storedPath) &&
+              !storedPath.split(/[\\/]/).includes('..')
+          );
+        })
+        .map((item) => ({
+          id: String(item.id),
+          courseId: item.courseId,
+          originalName: String(item.originalName),
+          storedPath: String(item.storedPath),
+          ext: normalizeMaterialExt(item.ext),
+          mime: String(item.mime || ''),
+          size: Math.max(0, Number(item.size) || 0),
+          addedAt: item.addedAt || new Date().toISOString(),
+        }))
+    : [];
+
   const assignments = Array.isArray(input.assignments)
     ? input.assignments
         .filter((item) => item && item.title)
@@ -102,7 +133,7 @@ export function normalizeState(input) {
         }))
     : [];
 
-  return { settings, courses, assignments };
+  return { settings, courses, materials, assignments };
 }
 
 // Imports and migrations must not silently drop malformed records during normalization.
@@ -123,6 +154,30 @@ export function normalizeStateForImport(input) {
   }
   if (input.assignments.some(a => typeof a?.title !== 'string' || !a.title.trim())) {
     throw new Error('存在不完整的作业记录');
+  }
+  if (input.materials !== undefined) {
+    if (!Array.isArray(input.materials)) throw new Error('课件数据必须是数组');
+    const courseIds = new Set(input.courses.map((course) => course.id).filter(Boolean));
+    for (const material of input.materials) {
+      if (
+        !material ||
+        typeof material.id !== 'string' ||
+        typeof material.courseId !== 'string' ||
+        typeof material.originalName !== 'string' ||
+        typeof material.storedPath !== 'string' ||
+        !material.storedPath ||
+        !isMaterialExt(material.ext)
+      ) {
+        throw new Error('存在不完整的课件记录');
+      }
+      if (!courseIds.has(material.courseId)) throw new Error('课件关联的课程不存在');
+      if (
+        /^([a-zA-Z]:[\\/]|[\\/])/.test(material.storedPath) ||
+        material.storedPath.split(/[\\/]/).includes('..')
+      ) {
+        throw new Error('存在无效的课件路径');
+      }
+    }
   }
   return normalizeState(input);
 }

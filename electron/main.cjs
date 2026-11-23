@@ -17,6 +17,14 @@ const { spawn } = require('node:child_process');
 const { createNotificationService } = require('./notifications.cjs');
 const { openDatabase } = require('./database.cjs');
 const { createAccountStore } = require('./accounts.cjs');
+const {
+  copyMaterialFiles,
+  deleteCourseMaterials,
+  deleteMaterialFile,
+  isMaterialExtension,
+  readImageDataUrl,
+  resolveStoredMaterial,
+} = require('./materials.cjs');
 
 // A separate loopback port allows isolated tests without stopping a running copy.
 const configuredPort = Number(process.env.CPX_PORT || 17890);
@@ -113,6 +121,14 @@ function prepareFirstUserData({ userDir, isFirstUser }) {
   }
   // Keep the original database in place as a one-time backup; accounts use the copied file.
   console.log('[CoursePilot] 已有数据库已归入第一个账号', userDir);
+}
+
+function currentMaterialsUserDir() {
+  const user = accountStore?.currentUser();
+  if (!user) throw new Error('请先登录');
+  const userDir = accountStore.userDirFor(user.id);
+  fs.mkdirSync(path.join(userDir, 'materials'), { recursive: true });
+  return userDir;
 }
 
 function authStatusPayload() {
@@ -850,6 +866,54 @@ if (!hasSingleInstanceLock) {
         return { ok: false, error: error.message || String(error) };
       }
     });
+    const materialRequest = (handler) => async (event, payload) => {
+      try {
+        if (!isMainWindowEvent(event)) throw new Error('不允许此页面访问课件');
+        const userDir = currentMaterialsUserDir();
+        return { ok: true, ...(await handler(userDir, payload)) };
+      } catch (error) {
+        console.error('[CoursePilot] 课件操作失败', error);
+        return { ok: false, error: error.message || String(error) };
+      }
+    };
+    ipcMain.handle('materials-pick', materialRequest(async (userDir, payload) => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('主窗口不可用');
+      const courseId = payload?.courseId;
+      if (typeof courseId !== 'string' || !courseId.trim()) throw new Error('课程无效');
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: '选择课件',
+        buttonLabel: '添加课件',
+        defaultPath: process.env.CPX_MATERIALS_DIR || undefined,
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: '课件文件',
+            extensions: ['doc', 'docx', 'ppt', 'pptx', 'pdf', 'png', 'jpg', 'jpeg'],
+          },
+        ],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { items: [], errors: [] };
+      }
+      return copyMaterialFiles({ filePaths: result.filePaths, courseId, userDir });
+    }));
+    ipcMain.handle('materials-open', materialRequest(async (userDir, payload) => {
+      const fullPath = resolveStoredMaterial(userDir, payload?.storedPath);
+      if (!fs.existsSync(fullPath)) throw new Error('课件文件不存在，可能已被移动或删除');
+      if (!isMaterialExtension(path.extname(fullPath))) throw new Error('不支持的课件格式');
+      const error = await shell.openPath(fullPath);
+      if (error) throw new Error(error);
+      return { opened: true };
+    }));
+    ipcMain.handle('materials-read-image', materialRequest((userDir, payload) =>
+      readImageDataUrl(userDir, payload?.storedPath)
+    ));
+    ipcMain.handle('materials-delete', materialRequest((userDir, payload) => ({
+      deleted: deleteMaterialFile(userDir, payload?.storedPath),
+    })));
+    ipcMain.handle('materials-delete-course', materialRequest((userDir, payload) => ({
+      deleted: deleteCourseMaterials(userDir, payload?.courseId),
+    })));
     ipcMain.handle('open-pathly', (event) => {
       if (!isMainWindowEvent(event)) return { ok: false, error: '不允许此页面打开外部网站' };
       shell.openExternal('https://pathly.top').catch(() => {});

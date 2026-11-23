@@ -17,6 +17,18 @@ CREATE TABLE IF NOT EXISTS assignments (
   reminder_minutes INTEGER, reminder_notified_at INTEGER, created_at TEXT NOT NULL,
   done_at TEXT, position INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS materials (
+  id TEXT PRIMARY KEY,
+  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  original_name TEXT NOT NULL,
+  stored_path TEXT NOT NULL,
+  ext TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  added_at TEXT NOT NULL,
+  position INTEGER NOT NULL
+);
 CREATE INDEX IF NOT EXISTS assignments_course ON assignments(course_id);
 CREATE INDEX IF NOT EXISTS assignments_due ON assignments(status,due_at);
-PRAGMA user_version=1;
+CREATE INDEX IF NOT EXISTS materials_course ON materials(course_id);
+PRAGMA user_version=2;

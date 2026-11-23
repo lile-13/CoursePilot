@@ -1,6 +1,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const fs = require('node:fs');
 const path = require('node:path');
+const { isMaterialExtension } = require('./materials.cjs');
 
 const MAX_BYTES = 8 * 1024 * 1024;
 function validateState(value) {
@@ -35,6 +36,31 @@ function validateState(value) {
       colorIndex: Number.isInteger(c.colorIndex) ? c.colorIndex : 0,
       note: text(c.note ?? '', '课程备注'), sessions };
   });
+  const materialIds = new Set();
+  const materials = (Array.isArray(value.materials) ? value.materials : []).map((m) => {
+    text(m.id, '课件编号', false);
+    if (materialIds.has(m.id)) throw new Error('课件编号重复');
+    materialIds.add(m.id);
+    if (!m.courseId || !courseIds.has(m.courseId)) throw new Error('课件关联的课程不存在');
+    const storedPath = text(m.storedPath, '课件路径', false);
+    if (path.isAbsolute(storedPath) || storedPath.split(/[\\/]/).includes('..')) {
+      throw new Error('课件路径无效');
+    }
+    const ext = text(m.ext, '课件格式', false).replace(/^\./, '').toLowerCase();
+    if (!isMaterialExtension(ext)) throw new Error('课件格式无效');
+    const size = Number(m.size);
+    if (!Number.isSafeInteger(size) || size < 0) throw new Error('课件大小无效');
+    return {
+      id: m.id,
+      courseId: m.courseId,
+      originalName: text(m.originalName, '课件文件名', false),
+      storedPath,
+      ext,
+      mime: text(m.mime ?? '', '课件类型'),
+      size,
+      addedAt: text(m.addedAt ?? '', '添加时间'),
+    };
+  });
   const assignmentIds = new Set();
   const assignments = value.assignments.map(a => {
     text(a.id, '作业编号', false);
@@ -51,7 +77,7 @@ function validateState(value) {
       reminderNotifiedAt: a.reminderNotifiedAt ?? null,
       createdAt: text(a.createdAt ?? '', '创建时间'), doneAt: a.doneAt ?? null };
   });
-  return { settings: JSON.parse(JSON.stringify(value.settings)), courses, assignments };
+  return { settings: JSON.parse(JSON.stringify(value.settings)), courses, materials, assignments };
 }
 
 function openDatabase(userDataDir) {
@@ -61,7 +87,7 @@ function openDatabase(userDataDir) {
   try {
     db.exec('PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;');
     const version = db.prepare('PRAGMA user_version').get().user_version;
-    if (version > 1) throw new Error('数据库由更新版本创建，请使用新版软件打开');
+    if (version > 2) throw new Error('数据库由更新版本创建，请使用新版软件打开');
     db.exec('BEGIN IMMEDIATE');
     try { db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8')); db.exec('COMMIT'); }
     catch (error) { db.exec('ROLLBACK'); throw error; }
@@ -78,12 +104,16 @@ function openDatabase(userDataDir) {
         id: s.id, day: s.day, start: s.start, end: s.end, location: s.location, weeks: JSON.parse(s.weeks),
       })),
     }));
+    const materials = db.prepare('SELECT * FROM materials ORDER BY position').all().map(m => ({
+      id: m.id, courseId: m.course_id, originalName: m.original_name, storedPath: m.stored_path,
+      ext: m.ext, mime: m.mime, size: m.size, addedAt: m.added_at,
+    }));
     const assignments = db.prepare('SELECT * FROM assignments ORDER BY position').all().map(a => ({
       id: a.id, courseId: a.course_id, title: a.title, notes: a.notes, dueAt: a.due_at, status: a.status,
       reminderMinutes: a.reminder_minutes, reminderNotifiedAt: a.reminder_notified_at,
       createdAt: a.created_at, doneAt: a.done_at,
     }));
-    return { state: { settings, courses, assignments }, revision: Number(meta('revision')), path: filename };
+    return { state: { settings, courses, materials, assignments }, revision: Number(meta('revision')), path: filename };
   }
   function write(value, expectedRevision, migration = false) {
     const state = validateState(value);
@@ -92,7 +122,7 @@ function openDatabase(userDataDir) {
       const revision = Number(meta('revision') || 0);
       if (!migration && meta('initialized') !== '1') throw new Error('数据库尚未初始化');
       if (!migration && expectedRevision !== revision) throw new Error('数据版本已变化，请重新打开软件后重试');
-      db.exec('DELETE FROM assignments; DELETE FROM sessions; DELETE FROM courses; DELETE FROM settings;');
+      db.exec('DELETE FROM materials; DELETE FROM assignments; DELETE FROM sessions; DELETE FROM courses; DELETE FROM settings;');
       db.prepare('INSERT INTO settings VALUES (1,?)').run(JSON.stringify(state.settings));
       const insertCourse = db.prepare('INSERT INTO courses VALUES (?,?,?,?,?,?,?,?)');
       const insertSession = db.prepare('INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?)');
@@ -100,6 +130,9 @@ function openDatabase(userDataDir) {
         insertCourse.run(c.id, c.name, c.teacher, c.type, Number(c.archived), c.colorIndex, c.note, i);
         c.sessions.forEach((s, j) => insertSession.run(c.id, s.id, s.day, s.start, s.end, s.location, JSON.stringify(s.weeks), j));
       });
+      const insertMaterial = db.prepare('INSERT INTO materials VALUES (?,?,?,?,?,?,?,?,?)');
+      state.materials.forEach((m, i) => insertMaterial.run(m.id, m.courseId, m.originalName, m.storedPath,
+        m.ext, m.mime, m.size, m.addedAt, i));
       const insertAssignment = db.prepare('INSERT INTO assignments VALUES (?,?,?,?,?,?,?,?,?,?,?)');
       state.assignments.forEach((a, i) => insertAssignment.run(a.id, a.courseId, a.title, a.notes, a.dueAt,
         a.status, a.reminderMinutes, a.reminderNotifiedAt, a.createdAt, a.doneAt, i));

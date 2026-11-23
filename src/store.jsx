@@ -94,9 +94,38 @@ export function StoreProvider({ children, allowLegacyMigration = true }) {
         return setState((current) => ({
           ...current,
           courses: current.courses.filter((course) => course.id !== courseId),
+          materials: (current.materials || []).filter((material) => material.courseId !== courseId),
           assignments: current.assignments.map((assignment) =>
             assignment.courseId === courseId ? { ...assignment, courseId: null } : assignment
           ),
+        }));
+      },
+
+      addMaterials(courseId, items) {
+        if (!Array.isArray(items) || items.length === 0) return Promise.resolve(true);
+        return setState((current) => {
+          if (!current.courses.some((course) => course.id === courseId)) return current;
+          const existingIds = new Set((current.materials || []).map((material) => material.id));
+          const added = items
+            .filter((item) => item && item.originalName && item.storedPath && item.ext)
+            .map((item) => ({
+              id: item.id && !existingIds.has(item.id) ? item.id : createId('material'),
+              courseId,
+              originalName: String(item.originalName),
+              storedPath: String(item.storedPath),
+              ext: String(item.ext).replace(/^\./, '').toLowerCase(),
+              mime: String(item.mime || ''),
+              size: Math.max(0, Number(item.size) || 0),
+              addedAt: item.addedAt || new Date().toISOString(),
+            }));
+          return { ...current, materials: [...(current.materials || []), ...added] };
+        });
+      },
+
+      removeMaterial(id) {
+        return setState((current) => ({
+          ...current,
+          materials: (current.materials || []).filter((material) => material.id !== id),
         }));
       },
 
@@ -222,7 +251,7 @@ export function StoreProvider({ children, allowLegacyMigration = true }) {
   );
 
   const value = useMemo(
-    () => ({ state, settings: state?.settings, courses: state?.courses, assignments: state?.assignments, actions, toast, notify, databasePath, storageKind: desktop ? 'sqlite' : 'localStorage' }),
+    () => ({ state, settings: state?.settings, courses: state?.courses, materials: state?.materials || [], assignments: state?.assignments, actions, toast, notify, databasePath, storageKind: desktop ? 'sqlite' : 'localStorage' }),
     [state, actions, toast, notify, databasePath, desktop]
   );
 

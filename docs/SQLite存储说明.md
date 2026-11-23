@@ -1,14 +1,15 @@
-# SQLite 本地存储（v1.3.0）
+# SQLite 本地存储（v1.7.0）
 
 桌面版使用 Electron 38.8.6 自带 Node.js 22.22.0 的 `node:sqlite`，无额外数据库服务、账号系统或云同步。网页模式仍使用 localStorage。该 Node 版本的 SQLite 接口带实验性提示，本项目固定在已验证的 Electron 版本运行，不使用仅新版 Node 才有的接口。
 
 ## 文件位置与初始化
 
-- 数据库：`app.getPath('userData')/coursepilot.db`，默认通常在 Windows 的 `%APPDATA%/coursepilot/`。准确路径可在软件“设置 → 关于”查看。
+- 数据库：`app.getPath('userData')/users/<账号ID>/coursepilot.db`，默认通常在 Windows 的 `%APPDATA%/coursepilot/`。准确路径可在软件“设置 → 关于”查看。
+- 课程课件复制在对应账号目录的 `materials/<课程哈希>/` 下，数据库只保存相对路径。
 - 便携 EXE 的临时解压目录、项目源码目录和 release 目录均不存放业务数据库。
-- `electron:dev` 热更新开发模式单独使用用户目录的 `development/coursepilot.db`，不会把开发测试数据写入正式数据库。普通 `electron` 静态运行与打包版本使用正式数据库。
+- `electron:dev` 热更新开发模式单独使用用户目录的 `development/`，不会把开发测试数据写入正式数据库。普通 `electron` 静态运行与打包版本使用正式数据。
 - 第一次启动自动执行 `electron/schema.sql`；无需手工安装 SQLite 或执行 SQL。
-- `PRAGMA user_version=1` 为当前结构版本。遇到比当前版本更新的数据库时拒绝打开，避免降级破坏数据。
+- `PRAGMA user_version=2` 为当前结构版本。遇到比当前版本更新的数据库时拒绝打开，避免降级破坏数据。
 - 开启外键、WAL 和 `synchronous=FULL`。`coursepilot.db-wal`、`coursepilot.db-shm` 是运行时配套文件；应用运行时不能只复制主文件来制作完整备份，日常使用软件自带的 JSON 导出。
 
 ## 表结构
@@ -17,6 +18,7 @@
 | --- | --- |
 | courses | 课程 ID、名称、教师、类型、归档状态、配色及备注 |
 | sessions | 关联课程的星期、节次、地点和周次；周次对象以 JSON 保存 |
+| materials | 课件 ID、课程关联、原文件名、相对存储路径、格式、大小和添加时间 |
 | assignments | 作业、课程关联、截止时间、完成状态和提醒记录 |
 | settings | 学期、节次数及各节次时间等设置，作为一个 JSON 对象保存 |
 | app_meta | 初始化标记、迁移完成标记、数据修订号 |

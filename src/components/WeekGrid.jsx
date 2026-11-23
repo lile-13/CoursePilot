@@ -75,7 +75,7 @@ export default function WeekGrid({
   week,
   todayDateStr,
   now,
-  onEditCourse,
+  onOpenCourse,
   onCreateAt,
 }) {
   const periods = settings.periodsPerDay;
@@ -183,7 +183,7 @@ export default function WeekGrid({
               title={`${course.name}${course.teacher ? ` · ${course.teacher}` : ''}\n第${session.start}-${session.end}节${
                 session.location ? ` · ${session.location}` : ''
               }`}
-              onClick={() => onEditCourse(course)}
+              onClick={() => onOpenCourse(course)}
             >
               <span className="cb-top">
                 <span className="cb-name">{course.name}</span>

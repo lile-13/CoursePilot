@@ -10,6 +10,7 @@ import {
 } from '../lib/time.js';
 import { isWeekActive } from '../lib/weeks.js';
 import WeekGrid from './WeekGrid.jsx';
+import CourseDetail from './CourseDetail.jsx';
 import CourseEditor from './CourseEditor.jsx';
 import {
   CalendarIcon,
@@ -30,6 +31,7 @@ export default function SchedulePage({ onGoImport }) {
     return info.weekNumber;
   });
   const [editor, setEditor] = useState(null);
+  const [detailCourse, setDetailCourse] = useState(null);
 
   const info = getSemesterInfo(settings.startDate, settings.totalWeeks, now.dateStr);
   const safeWeek = Math.min(Math.max(week, 1), settings.totalWeeks);
@@ -165,12 +167,23 @@ export default function SchedulePage({ onGoImport }) {
             week={safeWeek}
             todayDateStr={now.dateStr}
             now={now}
-            onEditCourse={(course) => setEditor({ mode: 'edit', course })}
+            onOpenCourse={(course) => setDetailCourse(course)}
             onCreateAt={(day, start) => setEditor({ mode: 'create', preset: { day, start } })}
           />
-          <p className="grid-hint">提示：点击空白格可快速添加课程，点击课程块可编辑或删除。</p>
+          <p className="grid-hint">提示：点击空白格可快速添加课程，点击课程块可查看详情、课件或编辑课程。</p>
         </>
       )}
+
+      {detailCourse ? (
+        <CourseDetail
+          course={detailCourse}
+          onClose={() => setDetailCourse(null)}
+          onEdit={(course) => {
+            setDetailCourse(null);
+            setEditor({ mode: 'edit', course });
+          }}
+        />
+      ) : null}
 
       {editor ? (
         <CourseEditor

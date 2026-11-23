@@ -55,6 +55,8 @@ export default function Header({ activeTab, onTabChange }) {
                 key={tab.key}
                 type="button"
                 className={`nav-item ${activeTab === tab.key ? 'is-active' : ''}`}
+                aria-current={activeTab === tab.key ? 'page' : undefined}
+                title={tab.label}
                 onClick={() => onTabChange(tab.key)}
               >
                 <TabIcon size={16} />

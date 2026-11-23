@@ -425,7 +425,7 @@ export default function SettingsPage({ currentUser = null, onLogout = null }) {
         <section className="card settings-card">
           <div className="settings-card-head">
             <h2>关于</h2>
-            <span className="settings-status">v1.6.2</span>
+            <span className="settings-status">v1.7.0</span>
           </div>
           <div className="about-list">
             <p>

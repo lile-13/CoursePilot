@@ -117,6 +117,7 @@ export function createDemoState() {
   return {
     settings: { ...defaultSettings(), semesterName: '2026-2027 学年第一学期' },
     courses,
+    materials: [],
     assignments,
   };
 }

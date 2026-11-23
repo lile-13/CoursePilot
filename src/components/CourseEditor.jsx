@@ -126,10 +126,11 @@ export default function CourseEditor({ course, preset, onClose }) {
   const handleDelete = async () => {
     if (!course) return;
     const confirmed = window.confirm(
-      `确定删除课程“${course.name}”吗？关联的作业会保留，但会取消与课程的关联。`
+      `确定删除课程“${course.name}”吗？关联的作业会保留，但会取消与课程的关联；这门课的课件也会一并移除。`
     );
     if (!confirmed) return;
     if (!await actions.deleteCourse(course.id)) return;
+    await window.coursepilotDesktop?.materials?.deleteCourse({ courseId: course.id });
     notify('课程已删除');
     onClose();
   };

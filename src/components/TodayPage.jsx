@@ -153,15 +153,16 @@ export default function TodayPage({ onGoSchedule, onGoAssignments }) {
 
       <section className="today-hero-card">
         <div className="today-hero-main">{renderHero()}</div>
-        <div className="today-hero-side">
-          <span className="today-hero-side-label">今天</span>
-          <strong>{classes.length}</strong>
-          <span>节课</span>
-          <span className="today-hero-side-divider" />
-          <span className="today-hero-side-label">待交</span>
-          <strong>{pendingCount}</strong>
-          <span>项作业</span>
-        </div>
+        <dl className="today-hero-side">
+          <div>
+            <dt>今日课程</dt>
+            <dd>{classes.length}<span>节</span></dd>
+          </div>
+          <div>
+            <dt>待交作业</dt>
+            <dd>{pendingCount}<span>项</span></dd>
+          </div>
+        </dl>
       </section>
 
       <div className="today-grid">

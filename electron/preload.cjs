@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('coursepilotDesktop', {
     logout: () => ipcRenderer.invoke('auth-logout'),
     changePassword: (payload) => ipcRenderer.invoke('auth-change-password', payload),
   },
+  materials: {
+    pick: (payload) => ipcRenderer.invoke('materials-pick', payload),
+    open: (payload) => ipcRenderer.invoke('materials-open', payload),
+    readImage: (payload) => ipcRenderer.invoke('materials-read-image', payload),
+    delete: (payload) => ipcRenderer.invoke('materials-delete', payload),
+    deleteCourse: (payload) => ipcRenderer.invoke('materials-delete-course', payload),
+  },
   openSchool: () => ipcRenderer.invoke('open-school'),
   openPathly: () => ipcRenderer.invoke('open-pathly'),
   notify: (payload) => ipcRenderer.invoke('notify-assignment', payload),

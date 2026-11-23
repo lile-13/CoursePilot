@@ -1,7 +1,7 @@
 {
   "name": "coursepilot",
   "private": true,
-  "version": "1.6.2",
+  "version": "1.7.0",
   "type": "module",
   "description": "个人课表与课程作业管理系统",
   "author": "CoursePilot",
@@ -53,7 +53,9 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -62,4 +64,3 @@
     }
   }
 }
-
