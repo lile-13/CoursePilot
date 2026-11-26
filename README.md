@@ -8,8 +8,8 @@
 
 无需安装 Node.js 或配置开发环境，直接下载便携版即可体验全部桌面功能：
 
-- **Gitee 下载（国内推荐）**：[前往 Gitee 发行版 v1.7.0 下载便携版](https://gitee.com/Lile13/Lile13-code/releases/tag/v1.7.0)
-- **GitHub 下载**：[前往 GitHub Releases v1.7.0 下载便携版](https://github.com/lile-13/CoursePilot/releases/tag/v1.7.0)
+- **Gitee 下载（国内推荐）**：[前往 Gitee 发行版页面下载便携版](https://gitee.com/Lile13/Lile13-code/releases)
+- **GitHub 下载**：[前往 GitHub Releases 页面下载便携版](https://github.com/lile-13/CoursePilot/releases)
 
 **30 秒演示步骤**：完整解压压缩包后双击 `CoursePilot-1.7.0.exe`（程序未签名，如 Windows 提示「未知发布者」，点击「更多信息 → 仍要运行」即可）→ 创建任意本地账号登录 → 进入左侧「设置 → 数据管理」点击 **载入示例数据**，即可直接体验周课表、点击课程添加/预览课件、作业截止管理、今日视图、迷你悬浮窗与多账号数据隔离。
 
