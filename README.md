@@ -2,18 +2,16 @@
 
 面向大学生的本地课表助手。把东北大学教务系统里的整学期课表导入 CoursePilot，点开任意课程就能查看上课安排、打开课件，再到「今日」看下一节课和最近要交的作业。
 
+## Windows x64 快速体验
+
+- **直接运行**：在 [Gitee 发行版](https://gitee.com/Lile13/Lile13-code/releases/tag/v1.7.0) 或 [GitHub 发行版](https://github.com/lile-13/CoursePilot/releases/tag/v1.7.0) 选择 `CoursePilot-1.7.0.exe`，下载后双击，无需安装 Node.js。
+- **完整便携包**：同一发行版提供 `CoursePilot-1.7.0-Windows-x64.zip`，包含 EXE、浏览器扩展、示例 PNG 和使用说明。下载后完整解压。
+
+首次启动后创建本地测试账号，在「设置 → 数据管理」点击「载入示例数据」，即可查看课表和作业。验收课件时，从课表点开一门课，添加一张 PNG 再点击预览。测试东北大学真实教务导入时，再按包内说明加载扩展。程序未签名，Windows 可能提示未知发布者。
+
+如需运行源码或自动化测试，请查看下方的安装与启动说明。
+
 ![CoursePilot 1.7.0 桌面版登录界面，示例周课表带浮动和扫光效果](docs/screenshots/login-1.7.0.png)
-
-## 快速体验（推荐：直接下载 Windows 便携版 EXE）
-
-无需安装 Node.js 或配置开发环境，直接下载便携版即可体验全部桌面功能：
-
-- **Gitee 下载（国内推荐）**：[前往 Gitee 发行版页面下载便携版](https://gitee.com/Lile13/Lile13-code/releases)
-- **GitHub 下载**：[前往 GitHub Releases 页面下载便携版](https://github.com/lile-13/CoursePilot/releases)
-
-**30 秒演示步骤**：完整解压压缩包后双击 `CoursePilot-1.7.0.exe`（程序未签名，如 Windows 提示「未知发布者」，点击「更多信息 → 仍要运行」即可）→ 创建任意本地账号登录 → 进入左侧「设置 → 数据管理」点击 **载入示例数据**，即可直接体验周课表、点击课程添加/预览课件、作业截止管理、今日视图、迷你悬浮窗与多账号数据隔离。
-
-> 如需从源码运行或执行 61 项自动化测试，请见下方 [安装与启动](#安装与启动)（需 Node.js 24.x）。
 
 ## 两项主要功能
 
