@@ -961,16 +961,6 @@
           extraction.sessions.length ? 'success' : 'error'
         );
       } else if (autoAppWindow) {
-        existingAppWindow.postMessage(payload, '*');
-        // 同时写入剪贴板，便于应用未收到消息时使用“从剪贴板读取”兜底
-        copyText(serialized).catch(() => {});
-        showStatus(
-          extraction.sessions.length
-            ? `已读取 ${extraction.sessions.length} 个时段，请回到 CoursePilot 查看；若未响应，点击“从剪贴板读取”`
-            : extraction.warnings[0] || '未读取到课程，请确认课表已加载完成',
-          extraction.sessions.length ? 'success' : 'error'
-        );
-      } else if (autoAppWindow) {
         const send = () => {
           try {
             autoAppWindow.postMessage(payload, APP_ORIGIN);

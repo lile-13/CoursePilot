@@ -12,3 +12,6 @@ npm-debug.log*
 localstorage-before-sqlite-*.json
 before-sqlite-upgrade-*.json
 coursepilot-backup-*.json
+CoursePilot-*-便携版/
+CoursePilot-*-便携版.rar
+CoursePilot-*-便携版.zip
